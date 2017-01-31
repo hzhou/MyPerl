@@ -1,0 +1,180 @@
+include: c/regex_simple.def
+
+subcode: _autoload
+    $struct(TOK) int type, YYSTYPE value
+    $global char* T_atom_names[]={DUMP_STUB T_atom_names}
+    $global char* T_op_names[]={DUMP_STUB T_op_names}
+
+subcode: setup_parser
+    $(setmacro:_op=0x0)
+    $(setmacro:_atom=0)
+    $map op, pre, BOC
+    $map op, post, EOC
+    BLOCK
+    $(block:T_atom_names)
+        $: NULL
+    $(block:T_op_names)
+        $: NULL
+
+    subcode: atom(NAME)
+        $(setmacro:_atom+=1)
+        $define(T_$(NAME)) $(_atom)
+        $(block:T_atom_names)
+            "T_$(NAME)",
+
+    subcode: op(NAME)
+        $(if:NAME in left,right,pre,post)
+            $call set_precedence, $(NAME)
+        $(else)
+            $(setmacro:_op+=0x100)
+            $(if:NAME~[A-Za-z])
+                # NOOP
+            $(else)
+                $(set:NAME=$(sym:$(NAME)))
+
+            $define(T_$(NAME)) $(_op)
+            $(block:T_op_names)
+                "T_$(NAME)",
+
+fncode: get_T_name(n_type)
+    $return_type char *
+    tn_op = n_type >> 8
+    $if tn_op
+        return T_op_names[tn_op-1]
+    $else
+        return T_atom_names[n_type-1]
+
+perlcode: set_precedence
+    my $assoc=0
+    $if $param=~/^right/
+        $assoc=1
+    $elif $param=~/^pre/
+        $assoc=2
+    $elif $param=~/^post/
+        $assoc=3
+
+    my $macro = $MyDef::def->{macros}
+    my $_op= hex($macro->{_op})
+    $_op = ($_op & 0xfffffc)+4+$assoc
+    $macro->{_op} = "0x".sprintf("%x", $_op)
+
+macros:
+    # seq##prec##assoc
+    #      64 max level of precedence
+    #      16-bit max seq
+    is_atom: ($1 & 0xffff00)==0
+    is_op: ($1 & 0xffff00)
+    op_prec: ($1 & 0xff)
+    op_left: ($1 & 3)==0
+    op_right: ($1 & 3)==1
+    op_prefix: ($1 & 3)==2
+    op_postfix: ($1 & 3)==3
+
+    # BOC: begin of context
+    # (, [, {: use char value, bof: use 0
+macros:
+    MAX_TOK_STACK: 100
+    debug_parse: 100
+
+# f_skip_spaces: custom function
+#     which [re]loads src string
+#     , and skips spaces and comments, 
+#     returns NULL on EOF
+
+# supply set_cur(Type, val)
+#     as value type is user defined
+
+subcode: parse_frame
+    $local struct TOK stack[$(MAX_TOK_STACK)], i_top
+    $local struct TOK cur
+
+    $call set_cur, T_BOC, 0
+    stack[0] = cur
+    i_top=1
+    $call @parse_init
+
+    $(set:type=stack[i_top-$1].type)
+    $local s=NULL
+    $while 1
+        $(if:debug_parse)
+            $local i_loop=0
+            i_loop++
+            $if i_loop>$(debug_parse)
+                $call error, debug_parse tripped
+        &call lexer
+            s=f_skip_spaces(s)
+            $if s==NULL
+                $call set_cur, T_EOC, 0
+                break
+            $call @match
+            $call error, "unexpected char"
+
+        $if cur.type==T_BOC
+            stack[i_top++] = cur
+            $call @shift_boc
+            continue
+
+        &call try_reduce
+            $if $(is_atom:cur.type)
+                $call check_atom_context
+            $else
+                $call check_op_context
+                $if i_top<=1
+                    break
+
+                &call if_less_precedence
+                    $call @reduce
+                    continue
+                $elif $(op_postfix:cur.type)
+                    $if cur.type==T_EOC
+                        $call @reduce_eoc
+                    $else
+                        $call @reduce_postfix
+                    continue
+        $if !cur.type
+            continue
+        $call @pre_shift
+        &call shift
+            $if i_top==0
+                # EOF, ie (T_EOC, 0) reduces all
+                break
+            $else
+                stack[i_top++] = cur
+    # --
+    # $call @return
+
+    # -------------------------
+    subcode: lexer
+        do {
+            BLOCK
+        } while(0);
+
+    subcode: try_reduce
+        $while 1
+            BLOCK
+            break
+
+        subcode: check_atom_context
+            $if $(is_atom:$(type:1))
+                # break if resolved
+                #   turn last one into op
+                $call @resolve_atom_atom
+                $call error, "unexpected atom"
+
+        subcode: check_op_context
+            $if $(is_op:$(type:1))
+                $if $(op_prefix:cur.type)
+                    break
+                $else
+                    # break if resolved
+                    #   turn cur into uniop
+                    $call @resolve_op_op
+                    $call error, "unexpected operator!"
+        subcode: if_less_precedence
+            $(set:p0=$(op_prec:cur.type))
+            $(set:p1=$(op_prec:$(type:2)))
+            $if $(p0)<$(p1) || ($(p0)==$(p1) && $(op_left:cur.type))
+                BLOCK
+
+    subcode: shift
+        BLOCK

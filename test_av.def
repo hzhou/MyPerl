@@ -1,0 +1,21 @@
+include: macros/av.def
+
+subcode: _autoload
+    $struct(SV) int n
+    $register_prefix(sv) struct SV*
+
+fncode: SV_new(n)
+    $allocate sv
+    sv->n=n
+    return sv
+
+page: test_av, basic_frame
+    module: c
+
+    av = AV_new()
+    $for i=0:49
+        sv = SV_new(i)
+        AV_push(av, sv)
+
+    $for i=0:49
+        $print "av[%d] = %d", i, AV_get(av, i)->n

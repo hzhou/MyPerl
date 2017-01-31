@@ -1,0 +1,176 @@
+subcode: sv_setiv(v)
+    sv->type = SVt_int
+    sv->value.n=$(v)
+
+subcode: sv_setnv(v)
+    sv->type = SVt_float
+    sv->value.f=$(v)
+
+fncode: f_get_number(s, sv)
+    $(set:NV=double)
+    $(set:UV=int)
+
+    $local $(NV) nv=0.0, $(UV) uv=0
+    $local use_nv=0
+    tn_shift=0
+
+    $if *s=='0'
+        $call check_bases
+
+    $if tn_shift>0
+        $call get_hex_oct_bin
+        out: 
+        $if use_nv
+            $call sv_setnv, nv
+        $else
+            $call sv_setiv, uv
+    $else # decimal
+        $call get_decimal
+        $if !use_nv
+            $call sv_setiv, uv
+        $else
+            $call sv_setnv, nv
+    return s
+
+    # ------------------
+    subcode: check_bases
+        $if s[1]=='x'
+            s+=2
+            tn_shift=4
+        $elif s[1]=='b'
+            s+=2
+            tn_shift=1
+        $elif s[1]=~[.eE]
+            # decimal
+        $else
+            s++
+            tn_shift=3
+
+    # ------------------
+    subcode: get_decimal
+        ts_start=s
+        $call get_int_part
+        $if *s=='.' && s[1]!='.'
+            $call upgrade_to_float
+            $call get_float_part
+            $if *s=='.'
+                return f_get_v_string(ts_start,sv)
+        $if *s=~[eE]
+            $call upgrade_to_float
+            $call get_exp_part
+            $call @set_IEEE_float, nv, tn_exp
+
+        subcode: get_int_part
+            $while 1
+                $if isdigit(*s)
+                    tc_digit = *s & 0xf
+                    $call @check_overflow
+                    $if use_nv
+                        nv = nv*10.0+tc_digit
+                    $else
+                        uv = uv*10+tc_digit
+                $elif *s!='_'
+                    break
+                s++
+
+        subcode: upgrade_to_float
+            $if !use_nv
+                nv = ($(NV)) uv
+
+        subcode: get_float_part
+            s++
+            tf_place=10
+            $while isdigit(*s); s++
+                tc_digit = *s & 0xf
+                nv+=tc_digit/tf_place
+                tf_place*=10
+
+        subcode: get_exp_part
+            s++
+            tb_sign=1
+            $if *s=='-'
+                tb_sign=-1
+            tn_exp =0
+            $while isdigit(*s); s++
+                tn_exp=tn_exp*10+(*s & 0xf)
+            $if tb_sign
+                tn_exp=-tn_exp
+
+        subcode: set_IEEE_float(f, e)
+            # direct place the bits!
+            $(f)/=pow(10, $(e))
+
+    # ------------------
+    subcode: get_hex_oct_bin
+        $while 1
+            $call check_digit
+            $if !use_nv
+                $my unsigned int ux
+                ux = uv<<tn_shift
+                $if ux>>tn_shift != ux
+                    # warn overflow
+                    use_nv=1
+                    nv=($(NV))uv
+                $else
+                    uv = ux | tc_digit
+            $if use_nv
+                $local pf_shift[5]={1,2,4,8,16}
+                nv *= pf_shift[tn_shift]
+                nv += ($(NV)) tc_digit
+
+        # -----
+        subcode: check_digit
+            $(set:c89) join, '', case '*': , 8, 9
+            $(set:c27) join, '', case '*': , 2,3,4,5,6,7
+            $(set:c01) join, '', case '*': , 0, 1
+            $(set:hex) join, '', case '*': , a,b,c,d,e,f,A,B,C,D,E,F
+            $switch *s
+                case '_': s++; break
+                $(c89)
+                    $call @error_oct
+                $(c27)
+                    $call @error_bin
+                $(c01)
+                    tc_digit = *s & 0xf
+                    s++
+                    break
+                $(hex)
+                    $if tn_shift!=4
+                        goto out
+                    tc_digit = *s & 7 + 9
+                    break
+                default: goto out
+
+        subcode: error_oct
+            $if tn_shift == 3
+                $call error, "Illegal octal digit"
+
+        subcode: error_bin
+            $if tn_shift == 3
+                $call error, "Illegal binary digit"
+        
+#----------------------------------------------- 
+fncode: f_get_v_string(s, sv)
+    # start with digit (v should be verified alreayd)
+    memset(sv, 0, sizeof(*sv))
+    sv->type=SVt_string
+    $local u=0
+    $while 1; s++
+        $if isdigit(*s)
+            u=u*10+(*s&0xf)
+        $elif *s=='_'
+            # skip
+        $elif *s=='.'
+            $call append_char
+        $else
+            break
+    $call append_char
+    return s
+
+    subcode: append_char
+        $local pc_buf[8], n=0
+        $if u<256
+            pc_buf[n++]=u
+        $else
+            $call error, "not supported vstring char"
+        SV_append_s(sv, (char*)pc_buf, n)

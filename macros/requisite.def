@@ -1,0 +1,103 @@
+subcode: _autoload
+    $register_prefix(sv) SV*
+    $register_prefix(op) OP*
+
+    $list Perl_deprecate, Perl_yyerror
+    $list Perl_filter_add, Perl_filter_del, Perl_filter_read
+    $list Perl_lex_start, Perl_lex_end, Perl_start_subparse, Perl_pmflag, Perl_str_to_version
+    $list Perl_keyword
+
+    $symbol PL_rsfp
+
+#-- required by scalarvoid()
+fncode: Perl_deprecate(s)
+    Perl_warner(WARN_DEPRECATED, "Use of %s is deprecated", s)
+
+#-- Perl_ck_grep
+fncode: Perl_yyerror(s)
+    sv_msg = newSVpv(s, 0)
+    $if PL_in_eval & EVAL_WARNONLY
+        Perl_warn("%"SVf, sv_msg)
+    $else
+        qerror(sv_msg)
+    $if PL_error_count >= 10
+        Perl_croak("too many errors.\n")
+    return 0
+
+#-- required by perl_parse, run_user_filter
+fncode: Perl_filter_add(filter_t funcp, sv_data)
+    $return_type SV*
+    return Nullsv
+fncode: Perl_filter_del(filter_t funcp)
+    return
+fncode: Perl_filter_read(int idx, SV* sv_buf, n_max)
+    $return_type I32
+    return -1
+
+#-- Perl_pp_entereval, Perl_pp_leaveeval
+fncode: Perl_lex_start(sv_line)
+    return
+
+fncode: Perl_lex_end
+    return
+
+#-- S_reg
+fncode: Perl_pmflag(U16* pmfl, int ch)
+    $if ch == 'i'
+	*pmfl |= PMf_FOLD;
+    $elif ch == 'g'
+	*pmfl |= PMf_GLOBAL;
+    $elif ch == 'c'
+	*pmfl |= PMf_CONTINUE;
+    $elif ch == 'o'
+	*pmfl |= PMf_KEEP;
+    $elif ch == 'm'
+	*pmfl |= PMf_MULTILINE;
+    $elif ch == 's'
+	*pmfl |= PMf_SINGLELINE;
+    $elif ch == 'x'
+	*pmfl |= PMf_EXTENDED;
+
+#-- Perl_sv_2cv
+fncode: Perl_start_subparse(I32 is_format, U32 flags)
+    $return_type I32
+    return 0
+
+#-- XS_UNIVERSAL_VERSION
+fncode: Perl_str_to_version(sv_ver)
+    $return_type NV
+    return (NV)0.0
+
+#-- required by Perl_pp_prototype
+fncode: Perl_keyword(s, I32 len)
+    $return_type I32
+    $include "keywords.h"
+    $call perl_keyword
+    return 0
+
+perlcode: perl_keyword
+    my @plus = qw(__FILE__ __LINE__ __PACKAGE__ and abs alarm atan2 accept bless bind binmode CORE cmp chr cos chop close chdir chomp chmod chown crypt chroot caller connect closedir continue die dump dbmopen dbmclose eq eof exp exit exec each endgrent endpwent endnetent endhostent endservent endprotoent fork fcntl flock fileno formline getppid getpgrp getpwent getpwnam getpwuid getpeername getprotoent getpriority getprotobyname getprotobynumber gethostbyname gethostbyaddr gethostent getnetbyname getnetbyaddr getnetent getservbyname getservbyport getservent getsockname getsockopt getgrent getgrnam getgrgid getlogin getc gt ge gmtime hex int index ioctl join keys kill lt le lc log link lock lstat length listen lcfirst localtime mkdir msgctl msgget msgrcv msgsnd ne not or ord oct open opendir pop push pack pipe quotemeta ref read rand recv rmdir reset rename rindex require reverse readdir readlink readline readpipe rewinddir seek send semop select semctl semget setpgrp seekdir setpwent setgrent setnetent setsockopt sethostent setservent setpriority setprotoent shift shmctl shmget shmread shmwrite shutdown sin sleep socket socketpair sprintf splice sqrt srand stat substr system symlink syscall sysopen sysread sysseek syswrite tell time times telldir truncate uc utime umask unpack unlink unshift ucfirst values vec warn wait write waitpid wantarray xor)
+    my @minus = qw(__DATA__ __END__ AUTOLOAD BEGIN CHECK DESTROY do delete defined END else eval elsif exists for format foreach grep goto glob INIT if last local my map next no our pos print printf package prototype q qr qq qw qx redo return scalar sort split study sub tr tie tied use undef until untie unless while)
+
+    my %h
+    $foreach $a in @plus
+        $h{substr($a, 0, 1)} .= "+$a"
+    $foreach $a in @minus
+        $h{substr($a, 0, 1)} .= "-$a"
+    push @$out, "switch(s[0]){"
+    $foreach $c in sort keys %h
+        push @$out, "  case '$c':"
+        my @tlist=split /([+-])/, $h{$c}
+        shift @tlist
+        my $key=""
+        my $_if="if"
+        $foreach $t in @tlist
+            $if $t eq "+"
+                $key=""
+            $elif $t eq "-"
+                $key="-"
+            $else
+                push @$out, "    $_if(strEQ(s, \"$t\")) return $key"."KEY_$t;"
+                $_if = "else if"
+        push @$out, "    break;"
+    push @$out, "}"

@@ -1,0 +1,3 @@
+subcode: on_setpvn
+    $if PL_tainting && PL_tainted
+        sv_magic($(sv), Nullsv, 't', Nullch, 0)

@@ -1,0 +1,8 @@
+#- we'll use standard isdigit, isalpha, isalnum, etc.
+
+#-     if custom classification is needed, redefine the macros here
+
+subcode: _autoload
+    $include ctype
+    $define(isword(c)) (isalnum(c) || c=='_')
+    $define(isword1st(c)) (isalpha(c) || c=='_')

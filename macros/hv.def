@@ -1,0 +1,58 @@
+include: c/hash.def
+include: c/str_pool.def
+
+# str_hash of SV*
+
+subcode: _autoload
+    $struct(strpool) $(strpool_member)
+    $struct(strhash) $(strhash_member), void * p_val
+    $struct(HV) $(strhash_member), struct SV* * p_val
+    $register_prefix(hv) struct HV *
+
+fncode: HV_new
+    $local hv
+    $allocate(1,0) hv
+    hv->n_val_size = sizeof(struct SV*)
+    return hv
+
+fncode: HV_resize(hv, n)
+    f_strhash_resize(hv, n)
+
+#---- access ---------------------------------- 
+subcode: HVfn
+    BLOCK
+
+fncode: HV_has(hv, s_key, int len)
+    $return_type bool
+    $(set:HV=hv, (unsigned char*)s_key, len)
+    k=f_strhash_lookup($(HV))
+    return hv->p_exist[k]
+
+fncode: HV_set(hv, s_key, int len, sv_value)
+    $(set:HV=hv, (unsigned char*)s_key, len)
+    k = f_strhash_lookup_left($(HV))
+    hv->p_val[k]=sv_value
+    # SV_ref_inc(sv_value)
+
+fncode: HV_get(hv, s_key, int len)
+    $return_type struct SV*
+    $(set:HV=hv, (unsigned char*)s_key, len)
+    k=f_strhash_lookup($(HV))
+    $if hv->p_exist[k]
+        return hv->p_val[k]
+    $else
+        return NULL
+
+#---- iteration ---------------------------------- 
+
+#---- clean up --------------------------------- 
+fncode: HV_free(hv)
+    $for 0:hv->n_size
+        $if hv->p_exist[$(i)]
+            # SV_ref_dec(hv->p_val[$(i)])
+    free(hv->p_key)
+    free(hv->p_exist)
+    free(hv->p_val)
+    free(hv->pool.pn_str)
+    free(hv->pool.pc_pool)
+

@@ -1,0 +1,138 @@
+macros:
+    MAX_IDENT: 256
+
+subcode: _autoload
+    # stashes (symbol table)
+    $global darray g_stashes: struct stash *
+    $global stash_local=NULL, stash_global=NULL
+    $set_var_attr stash_local, class=stash
+    $set_var_attr stash_global, class=stash
+
+#----------------------------------------------- 
+subcode: add_local(i, name, len)
+    $(i) = i_local
+    stash_local.$set $(name), $(len), i_local
+    i_local++
+
+subcode: add_global(i, name, len)
+    $(i) = i_global
+    stash_global.$set $(name), $(len), i_global
+    i_global++
+
+#------------------- 
+# ref: macros/parse_reduce.def - push/pop_scope
+subcode: init_local
+    stash_local = stash_new()
+
+subcode: init_unit
+    # a file scope
+    stash_global = stash_local
+
+subcode: init_package(name, len)
+    stash_global = stash_new()
+    g_stashes.$push stash_global
+    $call stash_set, stash_global, $(name), $(len), g_stashes_len-1
+
+subcode: init_main_unit
+    $call init_package, "::", 2
+
+#----------------------------------------------- 
+subcode: match_variable
+    $local ts_var_buf[$(MAX_IDENT)]
+    $(set:s=ts_var_buf)
+    has_colon=0
+    $call scan_variable
+    $if has_colon
+        $if n_in_my
+            $call error, "package var in my/our"
+        i_var = find_global($(s))
+        $if i_var
+            cur.type=T_ATOM
+            $call set_cur_op, OP_GLOBAL, i_var
+        $else
+            $call error, "package var not found"
+    $else
+        $if n_in_my==0
+            i_var = find_local($(s))
+            $if i_var
+                cur.type=T_ATOM
+                $call set_cur_op, OP_LOCAL, i_var
+            $else
+                $call error, "undeclared variable"
+        $elif n_in_my==WORD_our
+            i_var = find_global($(s))
+            $if !i_var
+                $call add_global, i_var, $(s), n+1
+            cur.type=T_ATOM
+            $call set_cur_op, OP_OUR, i_var
+        $elif n_in_my==WORD_my
+            i_var = find_local($(s))
+            $if !i_var
+                $call add_local, i_var, $(s), n+1
+            cur.type=T_ATOM
+            $call set_cur_op, OP_MY, i_var
+        $else
+            $call error, "can't happen"
+
+    # --------------------
+    subcode: scan_variable
+        $if char_sigil=='#'
+            $(s)[0]='@'
+        $else
+            $(s)[0]=char_sigil
+
+        s2=s
+        $while 1
+            $if isword(*s)
+                s++
+            $elif s[0]==':' && s[1]==':' && isword1st(s[2])
+                s+=3
+                has_colon=1
+            $else
+                break
+        n=(int)(s-s2)
+
+        memcpy($(s)+1, s2, n)
+        $(s)[n+1]='\0'
+
+#----- lexical stash -------------------
+#-- stash is HV except values are int
+#----
+fncode: find_local(s_name)
+    return stash_local.$get s_name, 0
+
+fncode: find_global(s_name)
+    # assume s_name is null-terminated
+    $local char_sigil
+    char_sigil = *s_name++
+    s=s_name
+    s_package_begin = s_name
+    s_package_end=NULL
+    $local stash
+    $set_var_attr stash, class=stash
+    $while *s
+        $if s[0]==':' && s[1]==':'
+            s+=2
+            s_package_end = s
+            s_name = s
+        $else
+            s++
+    $if s_package_end
+        $call get_stash
+        s_name-=1
+        *s_name = char_sigil
+    $else
+        stash = stash_global
+        s_name-=1
+
+    return stash.$get s_name, s-s_name
+
+    subcode: get_stash
+        stash = g_stashes[0]
+        $(set:l=s_package_end-s_package_begin)
+        i = stash.$get s_package_begin, $(l)
+        $if i>0
+            stash = g_stashes[i]
+        $else
+            croak("Package not found")
+           

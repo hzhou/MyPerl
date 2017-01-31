@@ -1,0 +1,27 @@
+subcode: _autoload
+    $class stash
+    $struct(stash) $(strhash_member), int* p_val
+    $register_prefix(stash) struct stash *
+    $list stash_new, f_stash_get
+
+fncode: stash_new
+    $allocate(1, 0) stash
+    stash->n_val_size = sizeof(int)
+    return stash
+
+fncode: f_stash_get(stash, s, int len)
+    $return_type int
+    k=f_strhash_lookup(stash, (unsigned char*)s, len)
+    $if stash->p_exist[k]
+        return stash->p_val[k]
+    $else
+        return 0
+
+#----
+subcode: stash_set(var, s, len, val)
+    k=f_strhash_lookup_left($(var), (unsigned char*)$(s), $(len))
+    $(var)->p_val[k]=$(val)
+
+subcode: stash_get(var, s, len)
+    $yield f_stash_get($(var), $(s), $(len))
+

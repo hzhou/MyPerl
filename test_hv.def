@@ -1,0 +1,21 @@
+include: macros/hv.def
+
+subcode: _autoload
+    $struct(SV) int n
+    $register_prefix(sv) struct SV*
+
+fncode: SV_new(n)
+    $allocate sv
+    sv->n=n
+    return sv
+
+page: test_hv, basic_frame
+    module: c
+
+    hv = HV_new()
+    HV_set(hv, "a1", 0, SV_new(1))
+    HV_set(hv, "a2", 0, SV_new(1001))
+
+    $(for:1,2)
+        sv= HV_get(hv, "a$1", 0)
+        $print "hv{a$1} = %d", sv->n

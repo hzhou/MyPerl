@@ -1,0 +1,31 @@
+include: macros/av.def
+include: macros/hv.def
+include: macros/sv.def
+include: macros/op.def
+include: macros/stash.def
+include: macros/cv.def
+include: macros/sv_registers.def
+include: macros/stack.def
+include: macros/parse.def
+
+include: macros/do_arithmetic.def
+include: macros/do_print.def
+
+page: myperl, basic_frame
+    $(set:f=tests/t.pl)
+    file_in = fopen("$(f)", "r")
+    $if !file_in
+        croak("Failed to open $(f)")
+
+    $call compile_init
+    cv_main = perl_parse(NULL, file_in)
+
+    $call run_init
+    &call run_cv, cv_main
+        # run ops
+        eval_op(cv_main->op_block)
+
+
+fncode: croak(s_msg)
+    fprintf(stderr, "%s\n", s_msg)
+    exit(-1)

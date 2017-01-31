@@ -1,0 +1,191 @@
+fncode: f_get_str_q(s, sv)
+    $local s2, n
+    s = f_scan_delim(s, &s2, &n)
+    $if s
+        SV_copy_s(sv, s2, n)
+    return s
+
+fncode: f_get_str_qq(s, sv)
+    $local s2, n
+    s = f_scan_delim(s, &s2, &n)
+    $if s
+        tb_simple=1
+        $call parse_string
+        $if tb_simple
+            n = ts_1-s2
+            SV_copy_s(sv, s2, n)
+        $else
+            $print "Unsupported string const!"
+    return s
+
+    subcode: parse_string
+        ts_1 = s2
+        ts_2 = s2
+        ts_n = s2+n
+        $while ts_2<ts_n
+            $if *ts_2=='\\'
+                $map simple_esc, n,t,r,a,b
+                $else
+                    *ts_1++ = ts_2[1]
+                    ts_2+=2
+            $else
+                $if ts_1<ts_2
+                    *ts_1 = *ts_2
+                ts_1++
+                ts_2++
+
+
+        subcode: simple_esc(n)
+            $case ts_2[1]=='$(n)'
+                *ts_1++ = '\$(n)'
+                ts_2+=2
+
+#-- old ------------------------------------- 
+fncode: f_scan_quote(s, char** p_str, pn_len)
+    c_mark = *s++ # ', ", `
+    $if c_mark == '('
+        c_mark =  ')'
+
+    c_state=0
+    $local pc_hold[100], n_hold=0
+    $(mset:esc=1,oct=2,hex_braket=3,name_braket=4)
+    &call src_scan_loop
+        $if *s==c_mark & c_state!=$(esc)
+            s++
+            break
+        $elif !c_state
+            $if *s=='\\'
+                c_state=$(esc)
+            $else
+                *d++ = *s++
+        $elif c_state==$(esc)
+            $map esc, nt
+            $call esc, e
+            $map hold, x, o, c, N
+            $map esc, brfa
+            # \x7f good, \033 unnecessary
+            $elif *s =~ [0-7]
+                c_state=$(oct)
+                pc_hold[0]=*s
+                n_hold=1
+            $else
+                c_state=0
+                *d++ = *s++
+        $elif c_state == $(oct)
+            $call on_oct
+        $elif c_state == 'x'
+            $call on_hex
+        $elif c_state == 'c'
+            $call on_ctrl
+        $elif c_state=='N' 
+            $call on_braket, $(name)
+        $elif c_state=='o' 
+            $call on_braket, $(oct_braket)
+        $elif c_state==$(hex_braket)
+            $call on_hex_braket
+        $elif c_state==$(oct_braket)
+            $call on_oct_braket
+        $elif c_state==$(name_braket)
+            $call on_name_braket
+            
+    subcode: esc(c)
+        $case *s=='$(c)'
+            $(if:c=e)
+                *d++ = 0x1b
+            $(else)
+                *d++ = '\\$(c)'
+            s++
+    subcode: hold(c)
+        $case *s=='$(c)'
+            c_state='$(c)'
+            n_hold=0
+            s++
+    # ------------------
+    subcode: on_oct
+        $if *s=~[0-7]
+            pc_hold[n_hold++]=*s++
+            $if n_hold==3
+                c_state=0
+        $else
+            c_state=0
+        $if !c_state
+            $call translate_oct
+
+    subcode: on_hex
+        $if *s=~[0-9a-fA-F]
+            pc_hold[n_hold++]=*s++
+            $if n_hold==2
+                c_state=0
+        $elif n_hold==0 and *s=='{'
+            c_state=$(hex_braket)
+            s++
+        $else
+            c_state=0
+        $if !c_state
+            $call translate_hex
+
+    subcode: on_ctrl
+        $if *s=~[A-Z]
+            *d++ = *s - 'A'
+        $else
+            *d++ = '\0'
+        s++
+        c_state=0
+
+    subcode: on_braket(type)
+        $if *s=='{'
+            c_state=$(type)
+        $else
+            # error
+            c_state=0
+        s++
+
+    # -----
+    subcode: scan_bracket_frame
+        $if *s=='}'
+            c_state=0
+            s++
+            BLOCK1
+        $else
+            $if n_hold<100
+                pc_hold[n_hold++] = *s
+            BLOCK2
+            s++
+
+    subcode: on_name_braket
+        &call scan_bracket_frame
+            # translate name
+
+    subcode: on_hex_braket
+        &call scan_bracket_frame
+            $call translate_hex
+        check:
+            $if !isXDIGIT(*s)
+                # error
+
+    subcode: on_oct_braket
+        &call scan_bracket_frame
+            $call translate_oct
+        check:
+            $if !isXDIGIT(*s)
+                # error
+
+    # ----
+    subcode: translate_oct
+        n=0
+        $for i=0:n_hold
+            n=(n<<3)+pc_hold[i]-'0'
+
+    subcode: translate_hex
+        n=0
+        $for i=0:n_hold
+            $if pc_hold[i]=~[0-9]
+                n=(n<<4)+pc_hold[i]-'0'
+            $elif pc_hold[i]=~[a-f]
+                n=(n<<4)+pc_hold[i]-'a'+10
+            $elif pc_hold[i]=~[A-F]
+                n=(n<<4)+pc_hold[i]-'A'+10
+
+    subcode: translate_name
+
+

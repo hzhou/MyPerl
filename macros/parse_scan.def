@@ -1,0 +1,216 @@
+subcode: _autoload
+    $global file_src=NULL, s_src_end=NULL
+
+subcode: init_src_string(s, n)
+    s_src_end = $(s)+$(n)
+
+#----------------------------------------------- 
+fncode: f_load_src(s)
+    # we may avoid global variables if we use nested functions
+    $(set:N=1024)
+    $(set:f=file_src)
+    $global s_src_buffer[$(N)+1], n_src_extra=0
+
+    $if s && s<s_src_end
+        return s
+
+    $if !$(f)
+        return NULL
+
+    $if n_src_extra
+        memmove(s_src_buffer, s_src_end, n_src_extra)
+        $(set:s=s_src_buffer+n_src_extra)
+        n = n_src_extra + fread($(s), 1, $(N)-n_src_extra, $(f))
+    $else
+        n = fread(s_src_buffer, 1, $(N), $(f))
+
+    n_extra = 0
+    $if n == $(N)
+        $call @get_token_boundary
+    $elif n== 0
+        # feof or ferror
+        return NULL
+
+    s_src_end = s_src_buffer+n
+    *s_src_end = '\0' # sentinel
+    return s_src_buffer
+
+    subcode: get_token_boundary
+        s = &s_src_buffer[n-1]
+        ts_min=&s_src_buffer[10]
+        tn_tmp=0
+        $while 1
+            $if *s=='\n'
+                break
+            $elif *s==' '
+                tn_tmp=n_extra
+            s--
+            n_extra++
+            $if s<=ts_min
+                # line too long, increase $(N)
+                $if tn_tmp>0
+                    n_src_extra=tn_tmp
+                $else
+                    n_src_extra = 0
+                break
+        n -= n_src_extra
+
+#----------------------------------------------- 
+subcode: src_skip_loop
+    $while 1
+        $if !s || s>=s_src_end
+            s=f_load_src(NULL)
+            $if s==NULL
+                return s
+        BLOCK
+
+fncode: f_skip_line(s)
+    &call src_skip_loop
+        $if *s!='\n'
+            s++
+        $else
+            s++
+            return s
+
+fncode: f_skip_spaces(s)
+    &call src_skip_loop
+        $if isspace(*s)
+            s++
+        $elif *s=='#'
+            return f_skip_line(s)
+        $else
+            return s
+
+fncode: f_skip_simple_spaces(s)
+    &call src_skip_loop
+        $if isSPACE(*s)
+            s++
+        $else
+            return s
+
+#----------------------------------------------- 
+# Non-space scans, no need to reload src
+#     1st char is assumed to be checked already
+fncode:@ f_scan_word(s)
+    $while isword(*s)
+        s++
+    return s
+
+#----------------------------------------------- 
+# Strings can span blanks and lines, need buffer
+fncode: f_scan_delim(s, char** p_str, pn_len)
+    $call set_delim
+    $call quick_scan
+    $call scan_loop
+    # ------------------
+    subcode: set_delim
+        c_begin = *s++ # ', ", `
+        $call mark, (, )
+        $call mark, [, ]
+        $call mark, {, }
+        $else
+            c_end = c_begin
+
+        subcode: mark(a, b)
+            $case c_begin=='$(a)'
+                c_end ='$(b)'
+
+    subcode: quick_scan
+        ts_orig = s
+        tn_level = 1
+        $while *s
+            $if *s=='\\'
+                s++
+            $elif *s==c_end
+                tn_level--
+                $if tn_level==0
+                    break
+            $elif *s==c_begin
+                tn_level++
+            s++
+        $if *s
+            *p_str = ts_orig
+            *pn_len = s-ts_orig
+            s++
+            return s
+        $else
+            # need full scan
+
+    subcode: scan_loop
+        b_esc=0
+        tn_level=1
+        &call src_scan_loop
+            $if b_esc 
+                b_esc=0
+            $else
+                $if *s=='\\'
+                    b_esc=1
+                $elif *s==c_end
+                    tn_level--
+                    $if tn_level==0
+                        s++
+                        break
+                $elif *s==c_begin
+                    tn_level--
+
+            *d++ = *s++
+
+#----------------------------------------------- 
+subcode: src_scan_loop
+    # to avoid buf_chain for the bulk cases
+    #   run a quick filter check
+    $call init_buf_chain
+    $while 1
+        $if s>=s_src_end
+            $call add_buf_chain
+            s=f_load_src(NULL)
+            $if s==NULL
+                return s
+        BLOCK
+    $call ret_buf_chain
+    return s
+
+    # ----------------
+    subcode: init_buf_chain
+        $(set:N=1024)
+        $struct(buf_chain) s[$(N)], n, next
+        $(for:head,tail,p)
+            $local struct buf_chain *$1
+        $local char* d
+
+        $allocate(1,0) p
+        head=p
+        tail=p
+        d=p->s
+        n=0
+
+    subcode: add_buf_chain
+        p->n = d - p->s
+        $allocate(1,0) p
+        tail->next = p
+        d=p->s
+        n=0
+
+    subcode: ret_buf_chain
+        n = 0
+        p=head
+        $while p
+            n+=p->n
+            p=p->next
+
+        $my s_tmp
+        $allocate(n) s_tmp
+        *p_str = s_tmp
+        *pn_len = n
+
+        p=head
+        $while p
+            memcpy(s_tmp, p->s, p->n)
+            s_tmp+=p->n
+            p=p->next
+            free(head)
+            head=p
+
+
+
+

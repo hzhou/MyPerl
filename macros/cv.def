@@ -1,0 +1,8 @@
+subcode: _autoload
+    $struct(CV) stash, i_start, n_vars, op_block
+    $register_prefix(cv) struct CV*
+
+fncode: CV_new
+    $local cv
+    $allocate(1, 0) cv
+    return cv

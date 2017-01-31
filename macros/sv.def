@@ -1,0 +1,160 @@
+subcode: _autoload
+    $register_prefix(sv) struct SV*
+    $register_prefix(av) struct AV*
+    $register_prefix(hv) struct HV*
+    $register_prefix(cv) struct CV*
+    $register_prefix(io) FILE *
+
+    $struct(STRING) s, int len, int size
+    $struct(SV) char type, int refcnt, union value, char flag
+    $union n, double f, struct STRING S, void* p
+    $map define_sv_type, int, float, number
+    $map define_sv_type, const, string, 
+    $map define_sv_type, sv, av, hv, cv, io
+    
+subcode: define_sv_type(T)
+    $(setmacro:_sv_type+=1)
+    $define(SVt_$(T)) $(_sv_type)
+
+#----------------------------------------------- 
+fncode: SV_set_n(sv, n)
+    sv->type = SVt_int
+    sv->value.n=n
+
+fncode: SV_set_f(sv, double f)
+    sv->type = SVt_float
+    sv->value.f=f
+
+fncode: SV_set_const(sv, s, n)
+    # I am not sure if we need this at all
+    # .size=0, do not free
+    $if n==0
+        n=strlen(s)
+    sv->type = SVt_const
+    sv->value.S.s=s
+    sv->value.S.len=n
+    
+fncode: SV_copy_s(sv, s, n)
+    $if n==0
+        n=strlen(s)
+    sv->type = SVt_string
+    $allocate(n+1) sv->value.S.s
+    memcpy(sv->value.S.s, s, n)
+    sv->value.S.len = n
+    sv->value.S.size= n+1
+
+subcode: if_sv_string(sv)
+    $if $(sv) && $(sv)->type==SVt_string
+        $(set:s=$(sv)->value.S.s)
+        $(set:n=$(sv)->value.S.len)
+        BLOCK
+
+# -------------------------------------
+fncode: SV_set_p(sv, void* p, int type)
+    sv->type = type
+    sv->value.p=p
+
+#---- Ref Counting -------------------------- 
+fncode: SV_refinc(sv)
+    sv->refcnt++
+
+fncode: SV_refdec(sv)
+    sv->refcnt--
+    $if sv->refcnt==0
+        $if sv->type == SVt_string && sv->value.S.size>0
+            free(sv->value.S.s)
+        $elif sv->type == SVt_sv
+            SV_refdec((struct SV*)sv->value.p)
+        $elif sv->type == SVt_av
+            AV_free((struct AV*)sv->value.p)
+        $elif sv->type == SVt_hv
+            HV_free((struct HV*)sv->value.p)
+        $elif sv->type == SVt_io
+            fclose((FILE*)sv->value.p)
+
+#---- String ---------------------------
+fncode: SV_resize(sv, n)
+    $call assert, sv->type==SVt_string
+    $(set:S=sv->value.S)
+    $if n==0
+        n=$(S).size*5/3+20
+
+    $if n>$(S).size
+        $(S).s = realloc($(S).s, n)
+        $(S).size = n
+
+fncode: SV_append_s(sv, s, n)
+    $call assert, sv->type==SVt_string
+    $(set:S=sv->value.S)
+    SV_resize(sv, $(S).len+n)
+    memcpy($(S).s+$(S).len, s, n)
+    $(S).len+=n
+
+fncode: SV_append_i(sv, i)
+    $call assert, sv->type==SVt_string
+    $(set:S=sv->value.S)
+    SV_resize(sv, $(S).len+30)
+    n=sprintf($(S).s+$(S).len, "%d", i)
+    $(S).len+=n
+
+fncode: SV_append_f(sv, double f)
+    $call assert, sv->type==SVt_string
+    $(set:S=sv->value.S)
+    SV_resize(sv, $(S).len+30)
+    n=sprintf($(S).s+$(S).len, "%.8g", f)
+    $(S).len+=n
+
+#---- Math --------------------------
+#----- basic ops, return a sv register
+fncode: sv_to_number(sv)
+    sv_tmp = get_svreg()
+    $if $(sv)->type==SVt_string
+        $(set:S=$(sv)->value.S)
+        $(S).s[$(S).len]='\0'
+        f_get_number($(S).s, sv_tmp)
+    $elif $(sv)->type < SVt_number
+        memcpy(sv_tmp, $(sv), sizeof(*sv_tmp))
+    $elif $(sv)->type == SVt_av
+        av = (struct AV*)$(sv)->value.p
+        sv_tmp.type=SVt_int
+        sv_tmp.value.n = (av->i_n-av->i_0)
+    $else
+        sv_tmp.type=SVt_int
+    return sv_tmp
+
+fncode: sv_add(sv_a, sv_b)
+    $call sv_binary, +
+
+fncode: sv_sub(sv_a, sv_b)
+    $call sv_binary, -
+
+fncode: sv_mul(sv_a, sv_b)
+    $call sv_binary, *
+
+fncode: sv_mul(sv_a, sv_b)
+    $call sv_binary, /
+
+subcode: sv_binary(op)
+    sv_r1 = sv_to_number(sv_a)
+    sv_r2 = sv_to_number(sv_b)
+    $(set:f=sv_r$1->value.f)
+    $(set:n=sv_r$1->value.n)
+    $(set:is_f=sv_r$1->type==SVt_float)
+    $if $(is_f:1)
+        $if $(is_f:2)
+            $(f:1) $(op)= $(f:2)
+        $else
+            $(f:1) $(op)= $(n:2)
+    $else
+        $if $(is_f:2)
+            $(f:1) = $(f:2) $(op) $(n:1)
+            sv_r1->type=SVt_float
+        $else
+            $(if:op=/)
+                $(f:1) = (double)$(n:1)/$(n:2)
+                sv_r1->type=SVt_float
+            $(else)
+                $(n:1) $(op)= $(n:2)
+
+    $call ret_svreg, sv_r2
+    return sv_r1

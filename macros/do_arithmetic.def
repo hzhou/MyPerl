@@ -1,0 +1,46 @@
+fncode: do_arithmetic(n_type, sv_a, sv_b)
+    $if n_type==OP_$(sym:%)
+        $call _to_int, sv_a
+        $call _to_int, sv_b
+    $elif n_type==OP_$(sym:/) || sv_b->type==SVt_float
+        $call _to_float, sv_a
+    
+    $if sv_a->type == SVt_int
+        $call do_arithmetic, n
+    $else
+        $call _to_float, sv_b
+        $call do_arithmetic, f
+
+    return sv_a
+
+    # -------------------
+    subcode: _to_int(sv)
+        $if $(sv)->type==SVt_float
+            n=(int)$(sv)->value.f
+            $(sv)->value.n = n
+        $elif $(sv)->type!=SVt_int
+            $(sv)->value.n = 0
+        $(sv)->type=SVt_int
+
+    subcode: _to_float(sv)
+        $if $(sv)->type==SVt_int
+            n=$(sv)->value.n
+            $(sv)->value.f = n
+        $elif $(sv)->type!=SVt_float
+            $(sv)->value.f = 0.0
+        $(sv)->type=SVt_float
+
+    subcode: do_arithmetic(t)
+        $(for:+,-,*,/)
+            $call do_, $(sym:$1), $1
+        $(if:t=int)
+            $(for:%,|,&,<<,>>)
+                $call do_, $(sym:$1), $1
+
+        subcode: do_(T, o)
+            $case n_type == OP_$(T)
+                # $print arithmetic: $(T)-$(t) [$(o)]
+                sv_a->value.$(t) $(o)= sv_b->value.$(t)
+
+
+

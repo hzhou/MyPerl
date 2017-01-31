@@ -1,0 +1,143 @@
+subcode: _autoload
+    $struct(AV) struct SV* * p_array, i_0, i_n, n_size
+    $register_prefix(av) struct AV *
+
+macros:
+    AV_HEADROOM: 10
+
+fncode: AV_new
+    $local av
+    $allocate(1,0) av
+    return av
+
+fncode: AV_free(av)
+    $if av->p_array
+        $for i=av->i_0:av->i_n
+            SV_refdec(av->p_array[i])
+            # free(sv)
+        free(av->p_array)
+    free(av)
+
+fncode: AV_free_0(av)
+    $if av->p_array
+        free(av->p_array)
+    free(av)
+
+fncode: AV_resize(av, n)
+    $if n==0
+        n=(av->i_n-av->i_0)*5/3+$(AV_HEADROOM)*2
+    $elif n<0
+        $local tb_neg=0
+        tb_neg=1
+        n=-n
+
+    $if av->n_size==0
+        $allocate(n) av->p_array
+        av->i_0 = $(AV_HEADROOM)
+        av->i_n = $(AV_HEADROOM)
+        av->n_size = n
+    $elif n < av->n_size
+        $if av->i_0 > $(AV_HEADROOM)
+            $call simply_shift
+    $else
+        $call allocate_new
+
+    subcode: simply_shift
+        $call copy, av->p_array
+
+    subcode: allocate_new
+        $my p_sv
+        $allocate(n) p_sv
+        $call copy, p_sv
+        free(av->p_array)
+        av->p_array=p_sv
+        av->n_size =n
+
+    subcode: copy(dst)
+        $my p_sv_1, p_sv_2, struct SV** p_sv_n
+        $if tb_neg
+            $call copy_b
+        $else
+            $call copy_a
+
+        subcode: copy_a
+            p_sv_1=$(dst)+$(AV_HEADROOM)
+            p_sv_2=av->p_array+av->i_0
+            p_sv_n=av->p_array+av->i_n
+
+            $while p_sv_2<p_sv_n
+                *p_sv_1++ = *p_sv_2++
+
+            av->i_0=$(AV_HEADROOM)
+            av->i_n=(int)(p_sv_1-$(dst))
+
+        subcode: copy_b
+            p_sv_1=$(dst)+n-$(AV_HEADROOM)-1
+            p_sv_2=av->p_array+av->i_n-1
+            p_sv_n=av->p_array+av->i_0
+
+            $while p_sv_2 >= p_sv_n
+                *p_sv_1-- = *p_sv_2--
+
+            av->i_0=(int)(p_sv_1-$(dst)+1)
+            av->i_n=n-$(AV_HEADROOM)
+
+#----------------------------------------------- 
+fncode: AV_push(av, sv_value)
+    $if av->i_n+1 >= av->n_size
+        AV_resize(av, 0)
+    av->p_array[av->i_n]=sv_value
+    av->i_n++
+    # SV_ref_inc(sv_value)
+
+# push/pop, caller responsible for ref_dec
+fncode: AV_pop(av)
+    $return_type struct SV *
+    $if av->i_n>av->i_0
+        av->i_n--
+        return av->p_array[av->i_n]
+
+fncode: AV_shift(av)
+    $return_type struct SV *
+    $if av->i_n>av->i_0
+        av->i_0++
+        return av->p_array[av->i_0-1]
+
+fncode: AV_grow(av, n)
+    $if av->i_n+n >= av->n_size
+        n_size=(av->i_n-av->i_0)+n+$(AV_HEADROOM)*2
+        AV_resize(av, n_size)
+
+    memset(av->p_array+av->i_n, 0, sizeof(struct SV*)*n)
+    av->i_n += n
+
+fncode: AV_unshift(av, n)
+    $if av->i_0 <= n
+        n_size=(av->i_n-av->i_0)+n+$(AV_HEADROOM)*2
+        AV_resize(av, -n_size)
+
+    av->i_0 -= n
+    memset(av->p_array+av->i_0, 0, sizeof(struct SV*)*n)
+
+#----------------------------------------------- 
+fncode: AV_get(av, i)
+    $return_type struct SV*
+    j=av->i_0+i
+    $if j <av->i_n
+        return av->p_array[j]
+    $else
+        return NULL
+
+fncode: AV_set(av, i, sv_value)
+    j=av->i_0+i
+    $if j<av->i_0
+        AV_unshift(av, av->i_0-j)
+    $elif j>=av->i_n
+        AV_grow(av, j-av->i_n+1)
+    av->p_array[av->i_0+j]=sv_value
+
+#----------------------------------------------- 
+subcode: av_each(av)
+    $for i=$(av)->i_0:$(av)->i_n
+        $(set:sv=$(av)->p_array[i])
+        BLOCK

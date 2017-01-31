@@ -1,0 +1,52 @@
+fncode: Perl_newPROG(OP *op)
+    $if PL_in_eval
+	$if PL_eval_root
+            return;
+        $else
+            $call new_eval, op
+    $else
+	$if !op
+	    return;
+        $else
+            $call new_prog, op
+
+    subcode: new_eval(op)
+        tn_flag=0
+        $if PL_in_eval & EVAL_KEEPERR
+            tn_flag = OPf_SPECIAL
+        $(for:root,start)
+            $symbol PL_eval_$1
+	PL_eval_root = newUNOP(OP_LEAVEEVAL, tn_flag, $(op))
+	PL_eval_start = linklist(PL_eval_root);
+	PL_eval_root->op_private |= OPpREFCOUNTED;
+	OpREFCNT_set(PL_eval_root, 1);
+	PL_eval_root->op_next = 0;
+	peep(PL_eval_start);
+
+    subcode: new_prog(op)
+        $(for:root,start)
+            $symbol PL_main_$1
+	PL_main_root = scope(sawparens(scalarvoid($(op))))
+	PL_curcop = &PL_compiling;
+        $(set:o=PL_main_root)
+        $if $(o)->op_next
+            PL_main_start=$(o)->op_next
+        $else
+            PL_main_start=linklist((OP*)$(o))
+	PL_main_root->op_private |= OPpREFCOUNTED;
+	OpREFCNT_set(PL_main_root, 1);
+	PL_main_root->op_next = 0;
+	peep(PL_main_start);
+	PL_compcv = 0;
+
+        $call @DB
+
+subcode: DB
+    $if PERLDB_INTER
+        CV *cv = get_cv("DB::postponed", FALSE);
+        $if cv
+            dSP;
+            PUSHMARK(SP);
+            XPUSHs((SV*)CopFILEGV(&PL_compiling));
+            PUTBACK;
+            call_sv((SV*)cv, G_DISCARD);

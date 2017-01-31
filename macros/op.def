@@ -1,0 +1,88 @@
+subcode: _autoload
+    $register_prefix(op) struct OP*
+    $struct(OP) int type, union left, union right
+    $union op, n, sv
+
+    $global char* OP_names[]={DUMP_STUB OP_names}
+
+    $map define_op, OP_GLOBAL, OP_LOCAL, OP_OUR, OP_MY
+    $map define_op, OP_SEQ, OP_LIST, OP_CONST
+    $map define_op_sym, +, -, *, /, %
+    $map define_op, OP_PRINT, OP_PRINTF
+
+    $(setmacro:is_arith_op=$1>OP_CONST && $1<OP_PRINT)
+
+subcode: define_op(name)
+    $(setmacro:_op_idx+=1)
+    $define($(name)) $(_op_idx)
+    $(block:OP_names)
+        "$(name)",
+
+subcode: define_op_sym(o)
+    $call define_op, OP_$(sym:$(o))
+
+fncode: get_OP_names(n_OP)
+    $return_type char*
+    return OP_names[n_OP-1]
+
+#----------------------------------------------- 
+subcode: set_op_leaf(left, v)
+    $(if:v~op)
+        $(op)->$(left).op = $(v)
+    $(elif:v~op$)
+        $(op)->$(left).op = $(v)
+    $(elif:v~sv)
+        $(op)->$(left).sv = $(v)
+    $(else)
+        $(op)->$(left).n = $(v)
+
+subcode: new_op(op, type, v)
+    $(op) = get_op()
+    $(op)->type = $(type)
+    $call set_op_leaf, right, $(v)
+
+subcode: op_list(op, type, op1, op2)
+    $(op)=get_op()
+    $(op)->type=$(type)
+    $(op)->left.op = $(op1)
+    $(op)->right.op = $(op2)
+
+#----------------------------------------------- 
+fncode: eval_op(op)
+    $return_type struct SV*
+    $if !op
+        return NULL
+    $(set:opT=op->type==OP_$1)
+    # $print "eval_op: %s", get_OP_names(op->type)
+    $if $(opT:SEQ)
+        eval_op(op->left.op)
+        return eval_op(op->right.op)
+    $elif $(opT:PRINT) || $(opT:PRINTF)
+        sv_a = eval_op(op->left.op)
+        &call eval_listop, op->right.op
+            $if $(opT:PRINT)
+                do_print(sv_a, av)
+            $else
+                do_printf(sv_a, av)
+    $elif op->type==OP_CONST
+        return op->right.sv
+    $elif $(is_arith_op:op->type)
+        sv_a = eval_op(op->left.op)
+        sv_b = eval_op(op->right.op)
+        return do_arithmetic(op->type, sv_a, sv_b)
+
+    return NULL
+
+subcode: eval_listop(op)
+    av = AV_new()
+    eval_list(av, $(op))
+    BLOCK
+    AV_free_0(av)
+
+fncode: eval_list(av, op)
+    $if op->type==OP_LIST
+        eval_list(av, op->left.op)
+        eval_list(av, op->right.op)
+    $else
+        AV_push(av, eval_op(op))
+

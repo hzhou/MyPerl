@@ -1,0 +1,142 @@
+#----------------------------------------------- 
+fncode: my_word(s, n)
+    $call perl_my_word
+    return 0
+
+
+subcode: _autoload
+    $global char* WORD_names[]={DUMP_STUB WORD_names}
+
+macros:
+    KEYOP_1: eq,ne,le,ge,lt,gt
+    KEYOP_2: or,and,not
+    KEYOP_3: my,our,local
+    KEYOP_LIST: $(KEYOP_1),$(KEYOP_2),$(KEYOP_3)
+
+    KEY_FN_LIST: print,printf
+
+fncode: keyword_op(s)
+    $return_type int
+    $(for:name in $(KEYOP_LIST))
+        $case s $eq "$(name)"
+            return T_$(name)
+    return 0
+
+fncode: get_WORD_name(id)
+    $return_type char *
+    $if n_word < sizeof(WORD_names)/sizeof(char*)
+        return WORD_names[id]
+    return NULL
+
+#------
+perlcode: perl_my_word
+    my @word_list = qw(
+        $(for:a in $(KEYOP_LIST))
+            $:: $(a)
+        $: OPERATOR
+        $(for:a in $(KEY_FN_LIST))
+            $:: $(a)
+        $: FN_LIST
+        );
+    # words in word_types are pseudo keywords
+    #     it separates words into different types
+    #     this assists in lexer action
+    my %word_types=(FN_LIST=>1)
+    # populate WORD_names
+    my $block=MyDef::compileutil::get_named_block("WORD_names")
+    $foreach $w in @word_list
+        push @$block, "\"$w\","
+    push @$block, "NULL"
+    # match
+    my %h
+    my $idx=1
+    $foreach $a in @word_list
+        add_define("WORD_$a", $idx)
+        $idx++
+        $if !$word_types{$a}
+            $h{substr($a, 0, 1)} .= ",$a"
+    push @$out, "switch(s[0]){"
+    $foreach $c in sort keys %h
+        push @$out, "  case '$c':"
+        my @tlist=split /,/, $h{$c}
+        shift @tlist
+        my $_if="if"
+        $foreach $t in @tlist
+            my $n = length($t)
+            push @$out, "    $_if(n==$n && strncmp(s, \"$t\", $n)==0) return WORD_$t;"
+            $_if = "else if"
+        push @$out, "    break;"
+    push @$out, "}"
+
+#----------------------------------------------- 
+fncode: f_scan_operator(s, int* p_id)
+    $call perl_my_operator
+    *p_id = 0
+    return s
+
+perlcode: perl_my_operator
+    my @op_list=(
+        # ',' and '\'' are dealt separately
+        $(for:a in ;,++,--,:,?)
+            '$(a)',
+        $(for:a in =,=~,..)
+            '$(a)',
+        $(for:a in <,>,<=,>=,==,!=)
+            '$(a)',
+        $(for:a in .,+,-,*,/,|,&,>>,<<,**)
+            '$(a)',
+        $(for:a in .,+,-,*,/,|,&,>>,<<)
+            '$(a)=',
+        );
+
+    my %h
+    $foreach $a in @op_list
+        $h{substr($a, 0, 1)} .= ",$a"
+
+    push @$out, "switch(s[0]){"
+    $call direct_ret, Comma
+    # $call direct_ret, \'
+    $foreach $c in sort keys %h
+        my @tlist=split /,/, $h{$c}
+        shift @tlist # first item is empty
+        $if 1==@tlist and $tlist[0] eq $c
+            $call get_ret, $tlist[0]
+            push @$out, "  case '$c': $line"
+        $else
+            push @$out, "  case '$c':"
+            my @sorted = sort {length($b)<=>length($a)} @tlist
+            my $n = @sorted
+            $for $_i=0:$n
+                my $t=$sorted[$_i]
+                $call get_ret, $t
+                $call get_cond, $t
+                $if $cond
+                    $if $_i==0
+                        push @$out, "    if($cond){$line}"
+                    $else
+                        push @$out, "    else if($cond){$line}"
+                $else
+                    push @$out, "    else{$line}"
+            push @$out, "    break;"
+    push @$out, "}"
+
+    subcode: get_cond(sym)
+        my $len = length($(sym))
+        my @parts
+        $for $i=1:$len
+            my $c = substr($(sym), $i, 1)
+            push @parts, "s[$i]=='$c'"
+        my $cond = join(" && ", @parts)
+
+    subcode: get_ret(sym)
+        my $len = length($(sym))
+        my $name = MyDef::utils::string_symbol_name($(sym))
+        my $line = "*p_id = T_$name;return s+$len;"
+
+    subcode: direct_ret(c)
+        $(if:c=Comma)
+            push @$out, "  case ',': *p_id = T_Comma; return s+1;"
+        $(else)
+            my $name = MyDef::utils::string_symbol_name('$(c)')
+            push @$out, "  case '$(c)': *p_id = T_$name; return s+1;"
+

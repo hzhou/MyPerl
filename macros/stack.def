@@ -1,0 +1,64 @@
+include: c/darray.def
+
+#-- compile time, we buildup stash
+subcode:: compile_init
+    $struct(c_scope) stash, i_local
+    $global darray lex_stack: struct c_scope
+    # compile time only need track size
+    $global i_local=0, i_global=0
+
+#----- runtime stack ----------------------
+# my variables lives on the stack
+# our variables lives in global
+
+#-- run time, we allocate variables
+subcode: run_init
+    $struct(r_scope)  cv, struct SV* * local_save, , n
+    $global darray run_stack: struct r_scope
+    # runtime variables
+    $global darray g_local: struct SV*
+    $global darray g_global: struct SV*
+    # the init is in the opcode
+    g_global.$grow i_global
+
+subcode: run_cv(cv)
+    $call enter_scope, $(cv)
+    BLOCK
+    $call leave_scope
+
+    subcode: enter_scope(cv)
+        i_0 = $(cv)->i_start
+        n = g_local_len - i_0
+        $call local_save
+
+        run_stack.$push cv_cur, p_sv, n
+
+        g_local.$grow $(cv)->n_vars
+        cv_cur = $(cv)
+
+        subcode: local_save
+            $my p_sv
+            $if n>0
+                $allocate(n) p_sv
+                $for i=0:n
+                    p_sv[i]=g_local[i_0+i]
+            $else
+                p_sv=NULL
+        
+    subcode: leave_scope
+        $(set:cv=cv_cur)
+        $for i=$(cv)->i_start:g_local_len
+            SV_refdec(g_local[i])
+        cv_cur, p_sv, n = run_stack.$pop
+        $call local_restore
+        g_local_len+=i_0+n
+
+        subcode: local_restore
+            $if p_sv
+                i_0 = $(cv)->i_start
+                $for i=0:n
+                    g_local[i_0+i]=p_sv[i]
+                free(p_sv)
+            $else
+                n=0
+

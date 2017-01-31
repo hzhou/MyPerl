@@ -1,0 +1,136 @@
+fncode: do_print(sv_io, av)
+    file_out = stdout
+    &call av_each, av
+        sv = $(sv)
+        $if sv->type==SVt_string
+            $(set:S=sv->value.S)
+            s=$(S).s
+            n=$(S).len
+            s[n]='\0'
+            fputs(s, file_out)
+
+fncode: do_printf(sv_io, av)
+    file_out = stdout
+    sv_fmt = AV_get(av, 0)
+    &call if_sv_string, sv_fmt
+        s_fmt = $(s)
+        s_end = s_fmt + $(n)
+        s = s_fmt
+        i_arg=1
+        $while 1; s++
+            $if s==s_end
+                $call print_sofar, 0
+                break
+            $elif *s=='%'
+                $if s[1]=='%'
+                    $call print_sofar, 1
+                    s_fmt = s+2
+                    continue
+                $else
+                    $call print_sofar, 0
+                    # *s = '%'
+                    $call scan_fmt
+
+    subcode: print_sofar(beyond)
+        $(if:beyond=0)
+            $if s>s_fmt
+                *s = '\0'
+                fputs(s_fmt, file_out)
+        $(else)
+            s[$(beyond)]='\0'
+            fputs(s_fmt, file_out)
+
+    subcode: scan_fmt
+        s++
+        # flag
+        $while *s=~[-+ 0#]
+            s++
+        # width
+        $while isdigit(*s)
+            s++
+        # precision
+        $if *s == '.'
+            s++
+            $while isdigit(*s)
+                s++
+        # data
+        $if *s=~[hl]
+            $if s[1]=~[hl]
+                s+=2
+            $else
+                s+=1
+        $elif *s=~[jqLtz]
+            s+=1
+        # fmt
+        $if *s=~[csduoxefgXEGbBp]
+            $call do_fmt
+            s++
+            s_fmt=s
+            continue
+        $else
+            # error
+            s++
+            continue
+
+        subcode: do_fmt
+            sv = AV_get(av, i_arg++)
+            sv=SV_fmt(sv, *s, 0, 0, 0)
+            fputs(sv->value.S.s, file_out)
+
+include: c/string_fmt.def
+
+fncode: SV_fmt(sv, char_fmt, n_width, n_prec, n_flag)
+    $return_type struct SV*
+    $if !sv
+        sv=get_sv()
+        $if char_fmt=='s'
+            SV_copy_s(sv, "(null)", 0)
+        $else
+            SV_set_n(sv, 0)
+
+    $if char_fmt == 's' && sv->type!=SVt_string
+        SV_to_string(sv)
+    $elif sv->type==SVt_string
+        s = sv->value.S.s
+        f_get_number(s, sv)
+
+    $if char_fmt=='d'
+        $if sv->type==SVt_int
+            n = sv->value.n
+        $elif sv->type==SVt_float
+            n = (int)sv->value.f
+        $else
+            n = 0
+        &call reset_str
+            $(S).s=f_string_append_int($(fstr), n)
+    $elif char_fmt == 'f'
+        $my double f
+        $if sv->type==SVt_int
+            f = sv->value.n
+        $elif sv->type==SVt_float
+            f = sv->value.f
+        $else
+            f = 0.0
+        &call reset_str
+            $(S).s=f_string_append_float($(fstr), f, 8)
+    return sv
+
+fncode: SV_to_string(sv)
+    $if sv->type==SVt_int
+        n=sv->value.n
+        &call reset_str
+            $(S).s=f_string_append_int($(fstr), n)
+    $elif sv->type==SVt_float
+        $my double f
+        f=sv->value.f
+        &call reset_str
+            $(S).s=f_string_append_float($(fstr), f, 8)
+
+# ------------------
+subcode: reset_str
+    memset(sv, 0, sizeof(*sv))
+    sv->type=SVt_string
+    $(set:S=sv->value.S)
+    $(set:fstr=$(S).s,&$(S).len,&$(S).size)
+    BLOCK
+

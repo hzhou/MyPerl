@@ -1,0 +1,147 @@
+# include: macros/requisite.def
+include: macros/parse_frame.def
+include: macros/parse_precedence.def
+include: macros/parse_scan.def
+include: macros/parse_error.def
+include: macros/parse_reduce.def
+
+include: macros/parse_char.def
+include: macros/parse_keyword.def
+include: macros/parse_number.def
+include: macros/parse_string.def
+
+include: macros/parse_var.def
+# include: macros/parse_old.def
+
+subcode: _autoload
+    # YYSTYPE
+    $union(YYVAL) n, s, op, cv
+    $typedef union YYVAL YYSTYPE
+    $typedef struct OP OP
+
+fncode: perl_parse(s_in, file_in)
+    $(set:in_perl_parse=1)
+    $return_type struct CV*
+    $local s=s_in
+    $global file_src
+    file_src = file_in
+    # $print "s:%p, file_src: %p", s, file_src
+    $call parse_frame
+    return stack[0].value.cv
+
+    subcode: reduce
+        $(set:op_t=$(type:2))
+        $if $(op_prefix:$(type:2))
+            $(set:op_v=stack[i_top-2].value.n)
+            $(set:term=stack[i_top-1].value.op)
+            $call @reduce_prefix
+            $call error, "todo? unary operator"
+        $else
+            $(set:op_v=stack[i_top-2].value.n)
+            $(set:term1=stack[i_top-3].value.op)
+            $(set:term2=stack[i_top-1].value.op)
+            $call @reduce_binary
+            $call error, "todo? binary operator"
+        $call error, "Don't know how to reduce"
+
+        subcode: opT(T)
+            $case $(op_t)==T_$(T)
+                BLOCK
+
+    subcode: reduce_eoc
+        $(set:op_eoc=cur.value.n)
+        $(set:op_boc=stack[i_top-2].value.n)
+        $(set:block=stack[i_top-1].value.op)
+        $if $(op_eoc)==0
+            $call reduce_eof
+
+    subcode: reduce_postfix
+        $call error, "Don't know reduce_postfix"
+    subcode: pre_shift
+
+    # ------------------------
+    subcode: set_cur(type, v)
+        cur.type=$(type)
+        $(if:v~s_)
+            cur.value.s = $(v)
+        $(elif:v~op_)
+            cur.value.op = $(v)
+        $(else)
+            cur.value.n = $(v)
+
+#----------------------------------------------- 
+subcode: set_cur_op(type, v)
+    $call new_op, cur.value.op, $(type), $(v)
+
+subcode: match
+    $elif isdigit(*s)
+        cur.type=T_ATOM
+        $temp sv
+        $(sv) = get_sv()
+        s = f_get_number(s, $(sv))
+        $call set_cur_op, OP_CONST, $(sv)
+        break
+    $elif *s=~['"]
+        cur.type = T_ATOM
+        $temp sv
+        $(sv) = get_sv()
+        $if *s=='\''
+            s = f_get_str_q(s, $(sv))
+        $else
+            s = f_get_str_qq(s, $(sv))
+        $if s==NULL
+            $call error, "unterminated string"
+        $call set_cur_op, OP_CONST, $(sv)
+        break
+    $elif isword(*s)
+        $call @match_v_string
+        s2 = s
+        s = f_scan_word(s)
+        tn_word = my_word(s2, s-s2)
+        $if !tn_word
+            $call set_cur, T_WORD, 0
+        $elif tn_word<WORD_OPERATOR
+            tn_op = keyword_op(s2)
+            $if tn_op==WORD_my || tn_op==WORD_our
+                $local n_in_my
+                n_in_my = tn_op # reset at reduction
+            $call set_cur, tn_op, 0
+        $elif tn_word<WORD_FN_LIST
+            $call set_cur, T_FN_LIST, tn_word
+        $else
+            $call error, "word not supported"
+        break
+    $elif $(is_op:$(type:1)) && *s=~[$@%]
+        char_sigil=*s++
+        $if *s=='#' && char_sigil=='$'
+            char_sigil=*s++
+        $if isword1st(*s)
+            $call match_variable
+        $elif *s=~[${]
+            $call set_cur, T_SIGIL, char_sigil
+        $else
+            $call error, "Invalid char after sigil"
+        break
+    $else
+        tn_op=0
+        # $print "f_scan_operator [%c]", s[0]
+        s = f_scan_operator(s, &tn_op)
+        # $print "    returns 0x%x", tn_op
+        $if tn_op>0
+            $call set_cur, tn_op, 0
+        $else
+            $call error, "symbol not matched"
+        break
+
+    subcode: match_v_string
+        $if *s=='v' && isdigit(s[1])
+            s2 = s+2
+            $while isdigit(*s2) || *s2=='_'
+                s2++
+            $if !isword(*s2)
+                cur.type=T_ATOM
+                $temp sv
+                $(sv) = get_sv()
+                s=f_get_v_string(s+1, $(sv))
+                break
+

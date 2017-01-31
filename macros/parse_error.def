@@ -1,0 +1,10 @@
+subcode: error(msg)
+    $print $(msg)
+    $(if:in_perl_parse)
+        $print "  stack: -"
+        $for i=0:i_top
+            $print "%s, -", get_T_name(stack[i].type)
+        $print "cur: %s", get_T_name(cur.type)
+        $print "  src: [-"
+        $print $s
+    exit(0)
