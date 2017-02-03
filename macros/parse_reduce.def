@@ -14,6 +14,8 @@ subcode:: reduce_prefix
             $call done
 
     subcode: done
+        $(if:debug)
+            $print reduce_unary T_$(T)
         $(op_t)=T_ATOM
         i_top-=1
         $(term)=op
@@ -26,6 +28,7 @@ subcode:: reduce_prefix
 subcode:: reduce_binary
     $call BIN, Semi, OP_SEQ
     $call BIN, Comma, OP_LIST
+    $call BIN, Eq, OP_ASSIGN
     $map BIN_OP, +, -, *, /, %
 
     # -----------
@@ -34,7 +37,8 @@ subcode:: reduce_binary
 
     subcode: BIN(v, type)
         &call opT, $(v)
-            # $print reduce_binary: $(type)
+            $(if:debug)
+                $print reduce_binary: $(type)
             $call op_list, op, $(type), $(term1), $(term2)
             $(term1) = op
             i_top-=2

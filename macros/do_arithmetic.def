@@ -1,17 +1,67 @@
-fncode: do_arithmetic(n_type, sv_a, sv_b)
-    $if n_type==OP_$(sym:%)
-        $call _to_int, sv_a
-        $call _to_int, sv_b
-    $elif n_type==OP_$(sym:/) || sv_b->type==SVt_float
-        $call _to_float, sv_a
-    
-    $if sv_a->type == SVt_int
-        $call do_arithmetic, n
-    $else
-        $call _to_float, sv_b
-        $call do_arithmetic, f
+subcode: _do_binary
+    sv = get_svreg()
+    BLOCK
+    $if $(sv_is_reg:sv_a)
+        $call ret_svreg, sv_a
+    $if $(sv_is_reg:sv_b)
+        $call ret_svreg, sv_b
+    return sv
 
-    return sv_a
+subcode: _do_arith(a, b)
+    $switch n_op
+        $(for:+,-,*,/)
+            $call do_, $(sym:$1), $1
+        $(for:%,|,&,<<,>>)
+            $call do_, $(sym:$1), $1
+
+    subcode: do_(T, o)
+        case OP_$(T):
+            # $print arithmetic: $(T)-$(t) [$(o)]
+            $(a) $(o)= $(b)
+            break
+
+# ------------------
+fncode: do_int_math(n_op, sv_a, sv_b)
+    &call _do_binary
+        $local n1, n2
+        $call sv_int, sv_a, n1
+        $call sv_int, sv_b, n2
+        $call do_arith, n1, n2
+        $call sv_set_n, sv_tmp, n1
+
+fncode: do_float_math(n_op, sv_a, sv_b)
+    &call _do_binary
+        $local f1, f2
+        $call sv_float, sv_a, f1
+        $call sv_float, sv_b, f2
+        $call do_arith, f1, f2
+        $call sv_set_f, sv_tmp, f1
+
+fncode: do_arithmetic(n_type, sv_a, sv_b)
+    $local n, double f
+    &call _frame
+        $if n_type==OP_$(sym:%)
+            $call _to_int, sv_a
+            $call _to_int, sv_b
+        $elif n_type==OP_$(sym:/) || sv_b->type==SVt_float
+            $call _to_float, sv_a
+        
+        $if sv_a->type == SVt_int
+            $call do_arithmetic, n
+        $else
+            $call _to_float, sv_b
+            $call do_arithmetic, f
+
+
+    subcode: _frame
+        sv = get_svreg()
+        BLOCK
+        $if $(sv_is_reg:sv_a)
+            $call ret_svreg, sv_a
+        $if $(sv_is_reg:sv_b)
+            $call ret_svreg, sv_b
+        return sv
+
 
     # -------------------
     subcode: _to_int(sv)

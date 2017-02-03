@@ -11,6 +11,9 @@ include: macros/parse.def
 include: macros/do_arithmetic.def
 include: macros/do_print.def
 
+macros:
+    debug: 1
+
 page: myperl, basic_frame
     $(set:f=tests/t.pl)
     file_in = fopen("$(f)", "r")

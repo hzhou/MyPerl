@@ -9,15 +9,16 @@ subcode: _autoload
     $set_var_attr stash_global, class=stash
 
 #----------------------------------------------- 
-subcode: add_local(i, name, len)
-    $(i) = i_local
-    stash_local.$set $(name), $(len), i_local
+#- note: index start at 1
+subcode: add_local(i_var, name, len)
     i_local++
+    $(i_var) = i_local
+    stash_local.$set $(name), $(len), i_local
 
-subcode: add_global(i, name, len)
-    $(i) = i_global
-    stash_global.$set $(name), $(len), i_global
+subcode: add_global(i_var, name, len)
     i_global++
+    $(i_var) = i_global
+    stash_global.$set $(name), $(len), i_global
 
 #------------------- 
 # ref: macros/parse_reduce.def - push/pop_scope
@@ -59,13 +60,13 @@ subcode: match_variable
                 $call set_cur_op, OP_LOCAL, i_var
             $else
                 $call error, "undeclared variable"
-        $elif n_in_my==WORD_our
+        $elif n_in_my==T_our
             i_var = find_global($(s))
             $if !i_var
                 $call add_global, i_var, $(s), n+1
             cur.type=T_ATOM
             $call set_cur_op, OP_OUR, i_var
-        $elif n_in_my==WORD_my
+        $elif n_in_my==T_my
             i_var = find_local($(s))
             $if !i_var
                 $call add_local, i_var, $(s), n+1

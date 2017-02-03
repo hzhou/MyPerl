@@ -102,7 +102,7 @@ subcode: match
             $call set_cur, T_WORD, 0
         $elif tn_word<WORD_OPERATOR
             tn_op = keyword_op(s2)
-            $if tn_op==WORD_my || tn_op==WORD_our
+            $if tn_op==T_my || tn_op==T_our
                 $local n_in_my
                 n_in_my = tn_op # reset at reduction
             $call set_cur, tn_op, 0

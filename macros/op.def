@@ -5,7 +5,7 @@ subcode: _autoload
 
     $global char* OP_names[]={DUMP_STUB OP_names}
 
-    $map define_op, OP_GLOBAL, OP_LOCAL, OP_OUR, OP_MY
+    $map define_op, OP_GLOBAL, OP_LOCAL, OP_OUR, OP_MY, OP_ASSIGN
     $map define_op, OP_SEQ, OP_LIST, OP_CONST
     $map define_op_sym, +, -, *, /, %
     $map define_op, OP_PRINT, OP_PRINTF
@@ -53,7 +53,8 @@ fncode: eval_op(op)
     $if !op
         return NULL
     $(set:opT=op->type==OP_$1)
-    # $print "eval_op: %s", get_OP_names(op->type)
+    $(if:debug)
+        $print "eval_op: %s", get_OP_names(op->type)
     $if $(opT:SEQ)
         eval_op(op->left.op)
         return eval_op(op->right.op)

@@ -8,3 +8,8 @@ subcode: error(msg)
         $print "  src: [-"
         $print $s
     exit(0)
+
+subcode: assert(@cond)
+    $if !($(cond))
+        $print $(cond)
+        exit(0)
