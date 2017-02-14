@@ -14,6 +14,7 @@ subcode: add_local(i_var, name, len)
     i_local++
     $(i_var) = i_local
     stash_local.$set $(name), $(len), i_local
+    # $print "add_local: %c i_var = %d",*$(name), i_local
 
 subcode: add_global(i_var, name, len)
     i_global++
@@ -38,50 +39,80 @@ subcode: init_main_unit
     $call init_package, "::", 2
 
 #----------------------------------------------- 
+subcode:: parse_keyword_other
+    $elif tn_word == WORD_my || tn_word==WORD_our
+        $local n_in_my
+        n_in_my = tn_word # reset at reduction
+        $call set_cur, T_MY, tn_word
+
+subcode:: reduce_prefix_cases
+    case T_MY:
+        op = $(term)
+        n_in_my = 0
+        break
+    case T_SIGIL:
+        char_sigil = stack[-2].value.n
+        $call new_op2, op, OP_SIGIL, char_sigil, $(term)
+        break
+
+    
+subcode:: parse_match_cases
+    $elif $(is_op:$(type:1)) && *s=~[$@%]
+        char_sigil=*s++
+        $if *s=='#' && char_sigil=='$'
+            char_sigil=*s++
+        $if isword1st(*s)
+            $call match_variable
+        $elif *s=~[${]
+            $call set_cur, T_SIGIL, char_sigil
+        $else
+            $call error, "Invalid char after sigil"
+        break
+
 subcode: match_variable
     $local ts_var_buf[$(MAX_IDENT)]
     $(set:s=ts_var_buf)
     has_colon=0
     $call scan_variable
+    $call set_sigil
     $if has_colon
+        # $PKG::var
         $if n_in_my
             $call error, "package var in my/our"
         i_var = find_global($(s))
         $if i_var
             cur.type=T_ATOM
-            $call set_cur_op, OP_GLOBAL, i_var
+            $call op_var, GLOBAL, i_var
         $else
             $call error, "package var not found"
     $else
-        $if n_in_my==0
-            i_var = find_local($(s))
-            $if i_var
-                cur.type=T_ATOM
-                $call set_cur_op, OP_LOCAL, i_var
-            $else
-                $call error, "undeclared variable"
-        $elif n_in_my==T_our
+        # $print ... var $(s), n_in_my=$n_in_my
+        $if n_in_my==WORD_our
             i_var = find_global($(s))
             $if !i_var
                 $call add_global, i_var, $(s), n+1
             cur.type=T_ATOM
-            $call set_cur_op, OP_OUR, i_var
-        $elif n_in_my==T_my
+            $call op_var, OUR, i_var
+        $elif n_in_my==WORD_my
             i_var = find_local($(s))
+            $call @debug_find_var, $(s)
             $if !i_var
                 $call add_local, i_var, $(s), n+1
             cur.type=T_ATOM
-            $call set_cur_op, OP_MY, i_var
+            $call op_var, MY, i_var
+        $elif n_in_my==0
+            i_var = find_local($(s))
+            $call @debug_find_var, $(s)
+            $if i_var
+                cur.type=T_ATOM
+                $call op_var, LOCAL, i_var
+            $else
+                $call error, "undeclared variable"
         $else
             $call error, "can't happen"
 
     # --------------------
     subcode: scan_variable
-        $if char_sigil=='#'
-            $(s)[0]='@'
-        $else
-            $(s)[0]=char_sigil
-
         s2=s
         $while 1
             $if isword(*s)
@@ -95,6 +126,63 @@ subcode: match_variable
 
         memcpy($(s)+1, s2, n)
         $(s)[n+1]='\0'
+
+    subcode: op_var(type, i)
+        $call new_op2, cur.value.op, OP_$(type), char_sigil, $(i)
+
+    subcode: set_sigil
+        $if char_sigil=='#'
+            $(s)[0]='@'
+        $elif char_sigil=='$'
+            s=f_skip_simple_spaces(s)
+            $if *s=='{'
+                $(s)[0]='%'
+            $elif *s=='['
+                $(s)[0]='@'
+            $else
+                $(s)[0]='$'
+        $else
+            $(s)[0]=char_sigil
+
+
+#-------------------------
+subcode:: define_ops
+    $map define_op, SIGIL, ARRAY_INDEX, HASH_INDEX
+
+subcode: if_atom_var(i)
+    $if stack[i_top-$(i)].type == T_ATOM
+        tn_type = stack[i_top-$(i)].value.op->type
+        $if tn_type==$1 :||: OP_SIGIL,OP_LOCAL,OP_GLOBAL
+            BLOCK
+
+subcode: check_reduce_var_index
+    &call if_atom_var, 3
+        tn_type=0
+        $if $(op_eoc)==']'
+            tn_type=OP_ARRAY_INDEX
+        $elif $(op_eoc)=='}'
+            tn_type=OP_HASH_INDEX
+        char_index = $(op_eoc)
+        $(set:v=stack[i_top-$1].value)
+        op_index = $(v:1).op
+        i_top-=2
+        # op_v = $(v:1).op
+        $while $(type:2)==T_SIGIL
+            char_sigil = $(v:2).n
+            $if char_sigil!='$'
+                $call error, "var index is scalar (use $)!"
+            $if tn_type==OP_ARRAY_INDEX
+                char_sigil='@'
+            $elif tn_type==OP_HASH_INDEX
+                char_sigil='%'
+            $call new_op2, op_v, OP_SIGIL, char_sigil, $(v:1).op
+            $(type:2)=T_ATOM
+            $(v:2).op=op_v
+            i_top-=1
+        $call op_list, op_v, tn_type, $(v:1).op, op_index
+        $(v:1).op=op_v
+        cur.type=0
+        break
 
 #----- lexical stash -------------------
 #-- stash is HV except values are int

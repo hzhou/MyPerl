@@ -1,0 +1,45 @@
+include: c/darray.def
+
+# my variables lives on the stack
+# our variables lives in global
+
+subcode: run_init
+    # runtime variables
+    $global darray g_local: struct SV
+    $global darray g_global: struct SV
+    g_global.$grow i_global
+
+fncode: run_cv(cv)
+    $(set:cv=cv)
+    $(set:n=g_local_len)
+    i_0 = cv->i_start
+    i_n = $(n)
+    n = $(n) - i_0
+
+    $call local_save
+    g_local.$grow cv->n_vars
+
+    $call @debug_run_cv_enter
+    sv_ret = eval_op(cv->op_block, 0, 0)
+    $call @debug_run_cv_leave
+
+    $for i=i_0:$(n)
+        SV_refdec(&g_local[i])
+
+    $call local_restore
+    return sv_ret
+
+    subcode: local_save
+        $my sv_save
+        $if n>0
+            $allocate(n) sv_save
+            memcpy(sv_save, g_local+i_0, n*$(sv_size))
+            $(n) = i_0
+        $else
+            sv_save=NULL
+        
+    subcode: local_restore
+        $if sv_save
+            memcpy(g_local+i_0, sv_save, n*$(sv_size))
+            $(n) = i_n
+            free(sv_save)

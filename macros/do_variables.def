@@ -1,0 +1,121 @@
+subcode:: define_ops
+    $map define_op, GLOBAL, LOCAL, OUR, MY
+    $map define_op, ASSIGN
+
+#-- ref: macrose/parse_var.def
+
+subcode:: eval_ops
+    $elif $(opT:MY) || $(opT:LOCAL)
+        i_var = (int)op->right.n
+        sv_var = &g_local[i_var]
+        # $print "var: %p", sv_var
+        $if $(opT:MY)
+            memset(sv_var, 0, $(sv_size))
+            $call init_sv_var
+        return sv_var
+    $elif $(opT:OUR) || $(opT:GLOBAL)
+        i_var = (int)op->right.n
+        sv_var = &g_global[i_var]
+        # $print "var: %p", sv_var
+        $if $(opT:OUR)
+            memset(sv_var, 0, $(sv_size))
+            $call init_sv_var
+        return sv_var
+
+    subcode: init_sv_var
+        $if op->left.n=='@'
+            av = AV_new()
+            SV_set_p(sv_var, av, SVt_av)
+        $elif op->left.n=='%'
+            hv = HV_new()
+            SV_set_p(sv_var, hv, SVt_hv)
+
+#---- Index (ARRAY/HASH) ----------------
+subcode:: eval_ops
+    $elif $(opT:HASH_INDEX)
+        sv_a = eval_op($(L), $(CTX))
+        $if sv_a->type==SVt_hv
+            hv = $(sv_hv:sv_a)
+        $else
+            $call die, "non-hash index\n"
+        sv_b = eval_op($(R), $(CTX_SCALAR))
+        sv_key = do_string(sv_b)
+        &call if_sv_string, sv_key
+            sv = HV_get(hv, $(s), $(n))
+            $if sv==NULL && $(IS_LEFT)
+                sv  = get_sv()
+                HV_set(hv, $(s), $(n), sv)
+        $map ret_svreg, sv_a, sv_b, sv_key
+        return sv
+    $elif $(opT:ARRAY_INDEX)
+        sv_a = eval_op($(L), $(CTX))
+        $if sv_a->type==SVt_av
+            av = $(sv_av:sv_a)
+        $else
+            $call die, "non-array index\n"
+        sv_b = eval_op($(L), $(CTX_SCALAR))
+        i = do_int(sv_b)
+        sv = AV_get(av, i)
+        $if sv==NULL && $(IS_LEFT)
+            sv = get_sv()
+            AV_set(av, i, sv)
+        $map ret_svreg, sv_a, sv_b
+        return sv
+    
+#---- Assignment ------------------------- 
+subcode:: eval_ops
+    $elif $(opT:ASSIGN)
+        sv_var = eval_op($(L), $(CTX_LEFT))
+        sv_b = eval_op($(R), $(CTX))
+        return do_assign(op->type, sv_var, sv_b)
+
+fncode: do_assign(tn_op, sv_var, sv_val)
+    # $print "do_assign %p <- %p", sv_var, sv_val
+    SV_refdec(sv_var)
+    $if sv_var->type==SVt_hv
+        $if sv_val->type==SVt_av
+            $call copy_hash, sv_var, sv_val
+            goto done
+        $else
+            $call die, "Error\n"
+    $if sv_var->type==SVt_av
+        $if sv_val->type!=SVt_av
+            $call die, "Error\n"
+
+    memcpy(sv_var, sv_val, $(sv_size))
+    $if $(sv_is_reg:sv_val)
+        # simply grab
+        sv_val->flag=0
+    $else
+        $call copy_variable, sv_var, sv_val
+    done:
+    $call ret_svreg, sv_val
+    return sv_var
+
+subcode: copy_variable(dst, src)
+    $(set:T=$(src)->type==SVt_$1)
+    $if $(T:string)
+        $(set:n=$(src)->value.S.n)
+        $(set:size=$(dst)->value.S.size)
+        $(set:s=$1->value.S.s)
+        $(size)=$(n)+1
+        $(s:$(dst)) = malloc($(size))
+        memcpy($(s:$(dst)), $(s:$(src)), $(n))
+    $elif $(T:av)
+        $call error, "not supported"
+    $elif $(T:hv)
+        $call error, "not supported"
+    # todo: av, hv
+
+subcode: copy_hash(dst, src)
+    av = $(sv_av:$(src))
+    hv = $(sv_hv:$(dst))
+    &call av_each_pair, av
+        sv_key = do_string($(sv))
+        &call if_sv_string, sv_key
+            HV_set(hv, $(s), $(n), $(sv2))
+        $else
+            # null
+            $call die, "error"
+
+

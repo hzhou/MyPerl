@@ -10,27 +10,46 @@ fncode: get_svreg
     $return_type struct SV*
     $if n_svreg>=$(N_REGS)
         croak("Out of SV registers!")
-    $else
-        $while svregs[i_svreg].refcnt
-            $call inc_i_svreg
 
-        $local sv
-        sv= &svregs[ireg]
-        $call _init
-        n_svreg++
-        return sv
+    $while svregs[i_svreg].flag
+        $call inc_i_svreg
+
+    sv= &svregs[i_svreg]
+    $call _init
+    n_svreg++
+    return sv
 
     subcode: inc_i_svreg
         i_svreg=(i_svreg+1)%$(N_REGS)
 
     subcode: _init
-        sv->flag = SVf_reg
+        sv->flag = SVf_register
+        sv->refcnt=1
+        sv->type=0
 
 subcode: ret_svreg(sv)
-    $call assert, $(sv)->flag & 3 == SVf_reg
-    memset($(sv), 0, sizeof(struct SV))
-    n_svreg--
+    $if $(sv) && $(sv_is_reg:$(sv))
+        SV_refdec($(sv))
+        $(sv)->flag = 0
+        n_svreg--
 
+#- convenience
+subcode: get_string_reg(sv)
+    $(sv) = get_svreg()
+    $(sv)->type=SVt_string
+    $(sv)->value.S.s=NULL
+    $(sv)->value.S.n=0
+    $(sv)->value.S.size=0
+
+subcode: get_av_reg(sv, av)
+    $(sv) = get_svreg()
+    $(av) = AV_new()
+    SV_set_p($(sv), $(av), SVt_av)
+
+subcode: get_hv_reg(sv, hv)
+    $(sv) = get_svreg()
+    $(hv) = HV_new()
+    SV_set_p($(sv), $(hv), SVt_hv)
 #----------------------------------------------- 
 macros:
     OPBATCH: 100
@@ -47,16 +66,36 @@ fncode: get_op
         n_op_free=$(OPBATCH)
     return &op_freelist[i_op_free++]
 
+fncode: get_op_list(n)
+    $return_type struct OP*
+    $if i_op_free+n > n_op_free
+        $if n>$(OPBATCH)
+            $allocate(n, 0) op_freelist
+            i_op_free=n
+            n_op_free=n
+        $else
+            $allocate($(OPBATCH), 0) op_freelist
+            i_op_free=n
+            n_op_free=$(OPBATCH)
+        return op_freelist
+    $else
+        i_op_free+=n
+        return op_freelist+i_op_free-n
+
 #----------------------------------------------- 
 subcode: _autoload
     $global sv_freelist=NULL, i_sv_free, n_sv_free
 
+#-- sv for OP_CONST, AV/HV elements
 fncode: get_sv
     $return_type struct SV*
     $if i_sv_free>=n_sv_free
         $allocate($(OPBATCH),0) sv_freelist
         i_sv_free=0
         n_sv_free=$(OPBATCH)
-    return &sv_freelist[i_sv_free++]
+    sv = &sv_freelist[i_sv_free++]
+    # when refcnt ->0, we'll garbage collect it.
+    sv->refcnt = 1
+    return sv
 
 

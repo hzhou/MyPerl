@@ -2,14 +2,23 @@ include: macros/av.def
 include: macros/hv.def
 include: macros/sv.def
 include: macros/op.def
+
 include: macros/stash.def
 include: macros/cv.def
-include: macros/sv_registers.def
-include: macros/stack.def
-include: macros/parse.def
+include: macros/cv_run.def
 
-include: macros/do_arithmetic.def
+include: macros/parse.def
+include: macros/sv_registers.def
+include: macros/eval_op.def
+
+include: macros/do_convert.def
 include: macros/do_print.def
+include: macros/do_variables.def
+include: macros/do_arithmetic.def
+include: macros/do_string_ops.def
+
+include: macros/parse_extra.def
+include: macros/debug.def
 
 macros:
     debug: 1
@@ -20,14 +29,10 @@ page: myperl, basic_frame
     $if !file_in
         croak("Failed to open $(f)")
 
-    $call compile_init
     cv_main = perl_parse(NULL, file_in)
 
     $call run_init
-    &call run_cv, cv_main
-        # run ops
-        eval_op(cv_main->op_block)
-
+    run_cv(cv_main)
 
 fncode: croak(s_msg)
     fprintf(stderr, "%s\n", s_msg)

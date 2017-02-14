@@ -1,15 +1,47 @@
+subcode:: reduce_keyword_prefix
+    case WORD_print:
+        $call new_op, op, OP_PRINT, $(term)
+        break
+    case WORD_printf:
+        $call new_op, op, OP_PRINTF, $(term)
+        break
+
+subcode:: define_ops
+    $map define_op, PRINT, PRINTF
+
+subcode:: eval_ops
+    $elif $(opT:PRINT) || $(opT:PRINTF)
+        sv_a = eval_op($(L), $(CTX))
+        sv_b = eval_list(NULL, $(R), $(CTX))
+        av = $(sv_av:sv_b)
+        $if $(opT:PRINT)
+            do_print(sv_a, av)
+        $else
+            do_printf(sv_a, av)
+        $map ret_svreg, sv_a, sv_b
+
+#----------------------------------------------- 
 fncode: do_print(sv_io, av)
+    # $print do_print ...
     file_out = stdout
     &call av_each, av
         sv = $(sv)
         $if sv->type==SVt_string
             $(set:S=sv->value.S)
             s=$(S).s
-            n=$(S).len
+            n=$(S).n
             s[n]='\0'
             fputs(s, file_out)
+        $elif sv->type==SVt_int
+            fprintf(file_out, "%d", sv->value.n)
+        $elif sv->type==SVt_float
+            fprintf(file_out, "%f", sv->value.f)
+        $call @do_print_sv_types
+        $else
+            $call error, "print unsupported sv"
 
 fncode: do_printf(sv_io, av)
+    # $print do_printf ...
     file_out = stdout
     sv_fmt = AV_get(av, 0)
     &call if_sv_string, sv_fmt
@@ -86,7 +118,7 @@ fncode: SV_fmt(sv, char_fmt, n_width, n_prec, n_flag)
         $if char_fmt=='s'
             SV_copy_s(sv, "(null)", 0)
         $else
-            SV_set_n(sv, 0)
+            $call sv_set_n, sv, 0
 
     $if char_fmt == 's' && sv->type!=SVt_string
         SV_to_string(sv)
@@ -131,6 +163,6 @@ subcode: reset_str
     memset(sv, 0, sizeof(*sv))
     sv->type=SVt_string
     $(set:S=sv->value.S)
-    $(set:fstr=$(S).s,&$(S).len,&$(S).size)
+    $(set:fstr=$(S).s,&$(S).n,&$(S).size)
     BLOCK
 

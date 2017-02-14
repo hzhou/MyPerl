@@ -1,15 +1,25 @@
 subcode: error(msg)
     $print $(msg)
     $(if:in_perl_parse)
-        $print "  stack: -"
-        $for i=0:i_top
-            $print "%s, -", get_T_name(stack[i].type)
-        $print "cur: %s", get_T_name(cur.type)
-        $print "  src: [-"
-        $print $s
+        dump_parse_stack(stack, i_top, cur, s)
     exit(0)
 
 subcode: assert(@cond)
     $if !($(cond))
         $print $(cond)
         exit(0)
+
+fncode: dump_parse_stack(struct TOK* stack, i_top, struct TOK cur, s)
+    $print "  stack: -"
+    $for i=0:i_top
+        $(set:t=stack[i].type)
+        $(set:v=stack[i].value)
+        $if $(t) == T_BOC
+            $print "T_BOC%c, -", $(v).n
+        $elif $(t) == T_EOC
+            $print "T_EOC%c, -", $(v).n
+        $else
+            $print "%s, -", get_T_name($(t))
+    $print "cur: %s", get_T_name(cur.type)
+    $print "  src: [-"
+    $print $s

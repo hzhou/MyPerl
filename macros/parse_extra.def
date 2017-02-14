@@ -1,0 +1,11 @@
+subcode: match_v_string
+    $if *s=='v' && isdigit(s[1])
+        s2 = s+2
+        $while isdigit(*s2) || *s2=='_'
+            s2++
+        $if !isword(*s2)
+            cur.type=T_ATOM
+            sv = get_sv()
+            s=f_get_v_string(s+1, sv)
+            break
+

@@ -1,96 +1,67 @@
-subcode: _do_binary
+subcode:: define_ops
+    &call define_range, arith
+        $map define_op_sym, +, -, *, /, %
+        $map define_op_sym, |, &, >>, <<
+
+subcode:: reduce_binary_cases
+    $map BIN_sym, +, -, *, /, %
+
+subcode:: eval_ops
+    $elif $(op_is:arith)
+        sv_a = eval_op($(L), $(CTX))
+        sv_b = eval_op($(R), $(CTX))
+        return do_arithmetic(op->type, sv_a, sv_b)
+
+#----------------------------------------------- 
+subcode: _do_binary(type)
     sv = get_svreg()
     BLOCK
-    $if $(sv_is_reg:sv_a)
-        $call ret_svreg, sv_a
-    $if $(sv_is_reg:sv_b)
-        $call ret_svreg, sv_b
+    $map ret_svreg, sv_a, sv_b
     return sv
 
-subcode: _do_arith(a, b)
-    $switch n_op
-        $(for:+,-,*,/)
-            $call do_, $(sym:$1), $1
-        $(for:%,|,&,<<,>>)
-            $call do_, $(sym:$1), $1
+    subcode: _do_arith(a, b)
+        $switch n_op
+            $(for:+,-,*,/)
+                $call do_, $(sym:$1), $1
+            $(if:type=int)
+                $(for:%,|,&,<<,>>)
+                    $call do_, $(sym:$1), $1
 
-    subcode: do_(T, o)
-        case OP_$(T):
-            # $print arithmetic: $(T)-$(t) [$(o)]
-            $(a) $(o)= $(b)
-            break
+        subcode: do_(T, o)
+            case OP_$(T):
+                # $print arithmetic: $(T)-$(t) [$(o)]
+                $(a) $(o)= $(b)
+                break
 
 # ------------------
 fncode: do_int_math(n_op, sv_a, sv_b)
-    &call _do_binary
+    &call _do_binary, int
         $local n1, n2
         $call sv_int, sv_a, n1
         $call sv_int, sv_b, n2
-        $call do_arith, n1, n2
-        $call sv_set_n, sv_tmp, n1
+        $call _do_arith, n1, n2
+        $call sv_set_n, sv, n1
 
 fncode: do_float_math(n_op, sv_a, sv_b)
-    &call _do_binary
+    $return_type struct SV*
+    &call _do_binary, float
         $local f1, f2
         $call sv_float, sv_a, f1
         $call sv_float, sv_b, f2
-        $call do_arith, f1, f2
-        $call sv_set_f, sv_tmp, f1
+        $call _do_arith, f1, f2
+        $call sv_set_f, sv, f1
 
-fncode: do_arithmetic(n_type, sv_a, sv_b)
-    $local n, double f
-    &call _frame
-        $if n_type==OP_$(sym:%)
-            $call _to_int, sv_a
-            $call _to_int, sv_b
-        $elif n_type==OP_$(sym:/) || sv_b->type==SVt_float
-            $call _to_float, sv_a
-        
-        $if sv_a->type == SVt_int
-            $call do_arithmetic, n
-        $else
-            $call _to_float, sv_b
-            $call do_arithmetic, f
+fncode: do_arithmetic(n_op, sv_a, sv_b)
+    $(mset:int=1,float=2)
+    $local tn_type
+    $if n_op==OP_$(sym:%)
+        tn_type=$(int)
+    $elif n_op==OP_$(sym:/) || sv_b->type==SVt_float || sv_a->type==SVt_float
+        tn_type=$(float)
+    $else
+        tn_type=$(int)
 
-
-    subcode: _frame
-        sv = get_svreg()
-        BLOCK
-        $if $(sv_is_reg:sv_a)
-            $call ret_svreg, sv_a
-        $if $(sv_is_reg:sv_b)
-            $call ret_svreg, sv_b
-        return sv
-
-
-    # -------------------
-    subcode: _to_int(sv)
-        $if $(sv)->type==SVt_float
-            n=(int)$(sv)->value.f
-            $(sv)->value.n = n
-        $elif $(sv)->type!=SVt_int
-            $(sv)->value.n = 0
-        $(sv)->type=SVt_int
-
-    subcode: _to_float(sv)
-        $if $(sv)->type==SVt_int
-            n=$(sv)->value.n
-            $(sv)->value.f = n
-        $elif $(sv)->type!=SVt_float
-            $(sv)->value.f = 0.0
-        $(sv)->type=SVt_float
-
-    subcode: do_arithmetic(t)
-        $(for:+,-,*,/)
-            $call do_, $(sym:$1), $1
-        $(if:t=int)
-            $(for:%,|,&,<<,>>)
-                $call do_, $(sym:$1), $1
-
-        subcode: do_(T, o)
-            $case n_type == OP_$(T)
-                # $print arithmetic: $(T)-$(t) [$(o)]
-                sv_a->value.$(t) $(o)= sv_b->value.$(t)
-
-
-
+    $if tn_type==$(int)
+        return do_int_math(n_op, sv_a, sv_b)
+    $else
+        return do_float_math(n_op, sv_a, sv_b)

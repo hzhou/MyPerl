@@ -1,19 +1,38 @@
+subcode: parse_keyword_cases
+    $if tn_word<WORD_OPERATOR
+        tn_op = keyword_op(s2)
+        $call set_cur, tn_op, 0
+    $map case_category, FN_LIST
+
+    subcode: case_category(name)
+        $elif tn_word<WORD_$(name)
+            $call set_cur, T_$(name), tn_word
+
+# ref: perlcode: perl_my_word
+subcode: init_word_list 
+    my @word_list = qw(
+        $(for:a in $(KEYOP_LIST))
+            $:: $(a)
+        $: OPERATOR
+        $(for:a in $(KEY_FN_LIST))
+            $:: $(a)
+        $: FN_LIST
+        $(for:a in $(KEY_OTHER))
+            $:: $(a)
+        );
+    my %word_types=(
+        $(for:a in OPERATOR,FN_LIST,OTHER)
+            $(a)=>1,
+    );
+
 #----------------------------------------------- 
-fncode: my_word(s, n)
-    $call perl_my_word
-    return 0
-
-
 subcode: _autoload
     $global char* WORD_names[]={DUMP_STUB WORD_names}
 
 macros:
-    KEYOP_1: eq,ne,le,ge,lt,gt
-    KEYOP_2: or,and,not
-    KEYOP_3: my,our,local
-    KEYOP_LIST: $(KEYOP_1),$(KEYOP_2),$(KEYOP_3)
-
+    KEYOP_LIST:eq,ne,le,ge,lt,gt, or,and,not
     KEY_FN_LIST: print,printf
+    KEY_OTHER: my,our,local, if,elsif,else,for,while
 
 fncode: keyword_op(s)
     $return_type int
@@ -29,19 +48,12 @@ fncode: get_WORD_name(id)
     return NULL
 
 #------
+fncode: my_word(s, n)
+    $call perl_my_word
+    return 0
+
 perlcode: perl_my_word
-    my @word_list = qw(
-        $(for:a in $(KEYOP_LIST))
-            $:: $(a)
-        $: OPERATOR
-        $(for:a in $(KEY_FN_LIST))
-            $:: $(a)
-        $: FN_LIST
-        );
-    # words in word_types are pseudo keywords
-    #     it separates words into different types
-    #     this assists in lexer action
-    my %word_types=(FN_LIST=>1)
+    $call init_word_list
     # populate WORD_names
     my $block=MyDef::compileutil::get_named_block("WORD_names")
     $foreach $w in @word_list
@@ -74,10 +86,11 @@ fncode: f_scan_operator(s, int* p_id)
     *p_id = 0
     return s
 
+# ref: macros/parse_precedence.def
 perlcode: perl_my_operator
     my @op_list=(
         # ',' and '\'' are dealt separately
-        $(for:a in ;,++,--,:,?)
+        $(for:a in ;,++,--,:,?,=>)
             '$(a)',
         $(for:a in =,=~,..)
             '$(a)',

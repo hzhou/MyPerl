@@ -1,3 +1,16 @@
+subcode:: parse_match_cases
+    $elif *s=~['"]
+        sv = get_sv()
+        $if *s=='\''
+            s = f_get_str_q(s, sv)
+        $else
+            s = f_get_str_qq(s, sv)
+        $if s==NULL
+            $call error, "unterminated string"
+        $call set_atom, OP_CONST, sv
+        break
+
+#----------------------------------------------- 
 fncode: f_get_str_q(s, sv)
     $local s2, n
     s = f_scan_delim(s, &s2, &n)

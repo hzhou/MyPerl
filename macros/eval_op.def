@@ -1,0 +1,69 @@
+macros:
+    CTX: tn_context, tn_level+1
+    CTX_SCALAR: 0, tn_level+1
+    CTX_LIST: 1, tn_level+1
+    CTX_LEFT: 2, tn_level+1
+
+    IS_LIST: tn_context==1
+    IS_LEFT: tn_context==2
+
+    PARAM_CTX: tn_context, tn_level
+
+fncode: eval_op
+    $parameter op, $(PARAM_CTX)
+    $return_type struct SV*
+    $(set:opT=op->type==OP_$1)
+    $(set:L=op->left.op)
+    $(set:R=op->right.op)
+
+    $if !op
+        return NULL
+    $elif $(opT:SEQ)
+        eval_op($(L), 0, tn_level)
+        return eval_op($(R), 0, tn_level)
+    $call @debug_eval_op
+    $if $(opT:CV)
+        return run_cv(op->right.cv)
+    $elif $(opT:CONST)
+        return op->right.sv
+    $elif $(opT:LIST)
+        return eval_list($(L), $(R), $(CTX))
+    $call @eval_ops
+    $else
+        $call die, "unsupported op: %s", get_OP_name(op->type)
+    return NULL
+
+fncode: eval_list
+    $parameter op_a, op_b, $(PARAM_CTX)
+    # $print "eval_list %p, %p", op_a, op_b
+    sv_b = eval_op(op_b, $(CTX_LIST))
+    $if !op_a
+        $if sv_b->type == SVt_av
+            return sv_b
+        $else
+            $call get_av_reg, sv, av
+    $else
+        sv_a = eval_op(op_a, $(CTX_LIST))
+        $if $(sv_is_reg:sv_a) && sv_a->type==SVt_av
+            sv = sv_a
+            av = $(sv_av:sv)
+        $elif op_a
+            $call get_av_reg, sv, av
+            $call av_push, av, sv_a
+            $call ret_svreg, sv_a
+
+    $call av_push, av, sv_b
+    $call ret_svreg, sv_b
+    return sv
+
+    subcode: av_push(av_list, sv_item)
+        $if $(sv_item)->type==SVt_av
+            av_item = $(sv_av:$(sv_item))
+            &call av_each, av_item
+                AV_push($(av_list), $(sv))
+        $else
+            AV_push($(av_list), $(sv_item))
+
+#----------------------------------------------- 
+include: macros/do_arithmetic.def
+

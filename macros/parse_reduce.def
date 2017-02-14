@@ -1,24 +1,25 @@
 subcode:: reduce_prefix
-    &call opT, FN_LIST
-        $if $(op_v)==WORD_print
-            $call new_op, op, OP_PRINT, $(term)
-        $elif $(op_v)==WORD_printf
-            $call new_op, op, OP_PRINTF, $(term)
-        $else
-            $call error, "unsupported T_FN_LIST"
-        $call done
-    $(for:my in my,our)
-        &call opT, $(my)
-            op=$(term)
-            n_in_my = 0
-            $call done
+    $if $(op_t)==T_FN_LIST
+        switch ($(op_n)){
+            $call @reduce_keyword_prefix
+            default:
+                $call error, "unsupported keyword"
+                break
+        }
+    $else
+        switch ($(op_t)){
+            $call @reduce_prefix_cases
+            default:
+                $call error, "unsupported prefix"
+                break
+        }
+    $call done, T_ATOM
 
-    subcode: done
-        $(if:debug)
-            $print reduce_unary T_$(T)
-        $(op_t)=T_ATOM
+    subcode: done(T)
+        $call @debug_reduce_unary
+        $(op_t)=$(T)
+        $(op_op)=op
         i_top-=1
-        $(term)=op
         continue
 
 # ';' statement terminator
@@ -26,23 +27,31 @@ subcode:: reduce_prefix
 # ';' follow atom reduces to block
 # ';' follow EOC should dissolve ';'
 subcode:: reduce_binary
-    $call BIN, Semi, OP_SEQ
-    $call BIN, Comma, OP_LIST
-    $call BIN, Eq, OP_ASSIGN
-    $map BIN_OP, +, -, *, /, %
+    switch ($(op_t)){
+        $call BIN, Semi, OP_SEQ
+        $call BIN, Comma, OP_LIST
+        $call BIN, Eq, OP_ASSIGN
+        $call @reduce_binary_cases
+        default:
+            $call error, "unsupported binary op"
+            break
+    }
+    $(term1) = op
+    i_top-=2
+    continue
 
     # -----------
-    subcode: BIN_OP(v)
+    subcode: BIN_sym(v)
         $call BIN, $(sym:$(v)), OP_$(sym:$(v))
 
+    subcode: BIN_op(v)
+        $call BIN, $(v), OP_$(v)
+
     subcode: BIN(v, type)
-        &call opT, $(v)
-            $(if:debug)
-                $print reduce_binary: $(type)
+        case T_$(v):
+            $call @debug_reduce_binary
             $call op_list, op, $(type), $(term1), $(term2)
-            $(term1) = op
-            i_top-=2
-            continue
+            break
 
 subcode:: resolve_op_op
     $case $(type:1)==T_Semi
@@ -50,44 +59,3 @@ subcode:: resolve_op_op
         i_top--
         continue
         
-#---- context/scope ------------------------- 
-subcode: push_scope
-    $print push_scope
-    lex_stack.$push stash_local, i_local
-    stash_local = stash_new()
-    $if !stash_global
-        stash_global = stash_local
-
-subcode: pop_scope(op_block)
-    $print pop_scope
-    lex_stack_len--
-    $(set:cur=lex_stack[lex_stack_len])
-    $temp cv
-    cv = CV_new()
-    $call set_cv
-    stash_local = $(cur).stash
-    i_local = $(cur).i_local
-    $(export:cv)
-
-    subcode: set_cv
-        $(cv)->stash = $(cur).stash
-        $(cv)->i_start  = $(cur).i_local
-        $(cv)->n_vars   = i_local-$(cur).i_local
-        $(cv)->op_block = $(op_block)
-
-# ------------------
-subcode: parse_init
-    $call push_scope
-
-subcode: shift_boc
-    $(set:op_boc=cur.value.n)
-    $if 0
-        $call push_scope
-     
-subcode: reduce_eof
-    $if i_top==2
-        $call pop_scope, $(block)
-        stack[0].value.cv = $(cv)
-        i_top=0
-    $else
-        $call error, "Context mis-match!"

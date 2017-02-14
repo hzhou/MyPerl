@@ -1,31 +1,30 @@
-subcode: _autoload
-    &call setup_parser
-        $map atom, WORD, ATOM
-
-        $map op, left, ;
-        $map op, left, or
-        $map op, left, and
-        $map op, right, not
-        $map op, pre, FN_LIST
-        $map op, left, Comma
-        $map op, right, =,+=,-=,*=,/=,.=,|=,&=,>>=,<<=
-        $map op, right, :, ?
-        $map op, left, ..
-        $map op, left, ||
-        $map op, left, &&
-        $map op, left, |
-        $map op, left, &
-        $map op, left, ==, !=, eq, ne
-        $map op, left, <, >, <=, >=, lt, gt, le, ge
-        $map op, left, FN_1
-        $map op, left, >>, <<
-        $map op, left, +, -, .
-        $map op, left, *, /, %
-        $map op, left, =~
-        $map op, pre, UMINUS, ~, !, UAMPER
-        $map op, right, ** 
-        $map op, pre, ++, --
-        # $map op, post, ++, --
-        $map op, left, ->
-        $map op, pre, my, our, local
-        $map op, pre, SIGIL
+subcode: define_op_precedence
+    $map op, left, ;
+    $map op, left, or
+    $map op, left, and
+    $map op, right, not
+    $map op, pre, FN_LIST
+    $map op, left, Comma
+    $map op, right, =,+=,-=,*=,/=,.=,|=,&=,>>=,<<=
+    $map op, right, :, ?
+    $map op, left, ..
+    $map op, left, ||
+    $map op, left, &&
+    $map op, left, |
+    $map op, left, &
+    $map op, left, ==, !=, eq, ne
+    $map op, left, <, >, <=, >=, lt, gt, le, ge
+    $map op, left, FN_1
+    $map op, left, >>, <<
+    $map op, left, +, -, .
+    $map op, left, *, /, %
+    $map op, left, =~
+    $map op, pre, UMINUS, ~, !, UAMPER
+    $map op, right, ** 
+    $map op, pre, ++, --
+    # $map op, post, ++, --
+    $map op, left, ->
+    $map op, pre, SIGIL, MY
+    
+    # simple syntactic aliases
+    $define(T_EqGt) T_Comma

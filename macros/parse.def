@@ -11,6 +11,7 @@ include: macros/parse_number.def
 include: macros/parse_string.def
 
 include: macros/parse_var.def
+include: macros/parse_statement.def
 # include: macros/parse_old.def
 
 subcode: _autoload
@@ -18,6 +19,9 @@ subcode: _autoload
     $union(YYVAL) n, s, op, cv
     $typedef union YYVAL YYSTYPE
     $typedef struct OP OP
+
+subcode:: define_parse_terms
+    $map atom, WORD, ATOM
 
 fncode: perl_parse(s_in, file_in)
     $(set:in_perl_parse=1)
@@ -32,16 +36,15 @@ fncode: perl_parse(s_in, file_in)
     subcode: reduce
         $(set:op_t=$(type:2))
         $if $(op_prefix:$(type:2))
-            $(set:op_v=stack[i_top-2].value.n)
+            $(set:op_n=stack[i_top-2].value.n)
+            $(set:op_op=stack[i_top-2].value.op)
             $(set:term=stack[i_top-1].value.op)
             $call @reduce_prefix
-            $call error, "todo? unary operator"
         $else
             $(set:op_v=stack[i_top-2].value.n)
             $(set:term1=stack[i_top-3].value.op)
             $(set:term2=stack[i_top-1].value.op)
             $call @reduce_binary
-            $call error, "todo? binary operator"
         $call error, "Don't know how to reduce"
 
         subcode: opT(T)
@@ -52,75 +55,67 @@ fncode: perl_parse(s_in, file_in)
         $(set:op_eoc=cur.value.n)
         $(set:op_boc=stack[i_top-2].value.n)
         $(set:block=stack[i_top-1].value.op)
+        $call @debug_reduce_eoc
         $if $(op_eoc)==0
             $call reduce_eof
+        $else
+            $call @check_eoc_match, $(op_boc), $(op_eoc)
+            $if $(op_eoc)=~[}\]]
+                $call @check_reduce_var_index
+            $if $(op_eoc)=='}'
+                $call reduce_cv
+            $call copy_stack, i_top-2, i_top-1
+            i_top-=1
+            cur.type=0
+            break
 
     subcode: reduce_postfix
         $call error, "Don't know reduce_postfix"
-    subcode: pre_shift
 
     # ------------------------
+    # -- during match
     subcode: set_cur(type, v)
         cur.type=$(type)
-        $(if:v~s_)
-            cur.value.s = $(v)
-        $(elif:v~op_)
-            cur.value.op = $(v)
-        $(else)
-            cur.value.n = $(v)
+        $(if:v!=0)
+            $(if:v~s_)
+                cur.value.s = $(v)
+            $(elif:v~op)
+                cur.value.op = $(v)
+            $(else)
+                cur.value.n = $(v)
+
+    # -- during match/reduction
+    subcode: set_atom(op_type, v)
+        cur.type=T_ATOM
+        $call new_op, cur.value.op, $(op_type), $(v)
 
 #----------------------------------------------- 
-subcode: set_cur_op(type, v)
-    $call new_op, cur.value.op, $(type), $(v)
-
 subcode: match
-    $elif isdigit(*s)
-        cur.type=T_ATOM
-        $temp sv
-        $(sv) = get_sv()
-        s = f_get_number(s, $(sv))
-        $call set_cur_op, OP_CONST, $(sv)
-        break
-    $elif *s=~['"]
-        cur.type = T_ATOM
-        $temp sv
-        $(sv) = get_sv()
-        $if *s=='\''
-            s = f_get_str_q(s, $(sv))
-        $else
-            s = f_get_str_qq(s, $(sv))
-        $if s==NULL
-            $call error, "unterminated string"
-        $call set_cur_op, OP_CONST, $(sv)
-        break
+    # ref: parse_number/string/var... use grep
+    $call @parse_match_cases
     $elif isword(*s)
         $call @match_v_string
         s2 = s
         s = f_scan_word(s)
-        tn_word = my_word(s2, s-s2)
+        n = (int)(s-s2)
+        tn_word = my_word(s2, n)
         $if !tn_word
-            $call set_cur, T_WORD, 0
-        $elif tn_word<WORD_OPERATOR
-            tn_op = keyword_op(s2)
-            $if tn_op==T_my || tn_op==T_our
-                $local n_in_my
-                n_in_my = tn_op # reset at reduction
-            $call set_cur, tn_op, 0
-        $elif tn_word<WORD_FN_LIST
-            $call set_cur, T_FN_LIST, tn_word
+            sv=get_sv()
+            SV_copy_s(sv, s2, n)
+            $call set_atom, OP_CONST, sv
         $else
-            $call error, "word not supported"
+            $call @parse_keyword_cases
+            $call @parse_keyword_other
+            $else
+                $call error, "unsupported keyword $s2"
         break
-    $elif $(is_op:$(type:1)) && *s=~[$@%]
-        char_sigil=*s++
-        $if *s=='#' && char_sigil=='$'
-            char_sigil=*s++
-        $if isword1st(*s)
-            $call match_variable
-        $elif *s=~[${]
-            $call set_cur, T_SIGIL, char_sigil
-        $else
-            $call error, "Invalid char after sigil"
+    $elif *s=~[({\[]
+        $call set_cur, T_BOC, *s
+        s++
+        break
+    $elif *s=~[)}\]]
+        $call set_cur, T_EOC, *s
+        s++
         break
     $else
         tn_op=0
@@ -133,15 +128,25 @@ subcode: match
             $call error, "symbol not matched"
         break
 
-    subcode: match_v_string
-        $if *s=='v' && isdigit(s[1])
-            s2 = s+2
-            $while isdigit(*s2) || *s2=='_'
-                s2++
-            $if !isword(*s2)
-                cur.type=T_ATOM
-                $temp sv
-                $(sv) = get_sv()
-                s=f_get_v_string(s+1, $(sv))
-                break
+subcode: shift_boc
+    $if cur.value.n == '{'
+        tb_cv = 1
+        &call if_atom_var, 1
+            tb_cv=0
+        $if tb_cv
+            $call cv_begin
 
+#----------------------------------------------- 
+subcode: check_eoc_match(b,e)
+    $(set:p1=($(b)=='(' && $(e)==')'))
+    $(set:p2=($(b)=='[' && $(e)==']'))
+    $(set:p3=($(b)=='{' && $(e)=='}'))
+    $if $(p1) || $(p2) || $(p3)
+        # ok
+    $else
+        $call error, "Parentheses mismatch!"
+
+    subcode: mismatch(open, close)
+        $case $(b)=='$(open)'
+            $if $(e)!='$(close)'
+                $call 

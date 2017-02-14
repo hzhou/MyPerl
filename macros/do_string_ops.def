@@ -1,0 +1,36 @@
+subcode:: reduce_binary_cases
+    $map BIN_op, eq,ne,lt,gt,le,ge
+
+subcode:: define_ops
+    &call define_range, string
+        $map define_op, eq,ne,lt,gt,le,ge,cmp
+
+subcode:: eval_ops
+    $elif $(op_is:string)
+        sv_a = eval_op($(L), $(CTX))
+        sv_b = eval_op($(R), $(CTX))
+        sv_s_a = do_string(sv_a)
+        sv_s_b = do_string(sv_b)
+        $(set:S=sv_s_$1->value.S)
+        n= $(S:a).n
+        n ?<= $(S:b).n
+        tn_ret = strncmp($(S:a).s, $(S:b).s, n)
+        $map ret_svreg, sv_a, sv_b, sv_s_a, sv_s_b
+
+        switch (op->type){
+            $call bool_case, eq, tn_ret==0
+            $call bool_case, ne, tn_ret!=0
+            $call bool_case, lt, tn_ret<0
+            $call bool_case, gt, tn_ret>0
+            $call bool_case, le, tn_ret<=0
+            $call bool_case, ge, tn_ret>=0
+            case OP_cmp:
+                sv = get_svreg()
+                $call sv_set_n, sv, tn_ret
+                return sv
+        }
+        return sv_FALSE
+
+    subcode: bool_case(T, cond)
+        case OP_$(T):
+            return $(cond)?sv_TRUE:sv_FALSE

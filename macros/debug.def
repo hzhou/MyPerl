@@ -1,0 +1,82 @@
+#----------------------------------------------- 
+# # DEBUG ON
+# # DEBUG OFF
+
+subcode: _autoload
+    $global n_debug=0
+
+#-- check input from f_skip_line ------------- 
+subcode: debug_check_flag
+    $if *s=='D'
+        $if s $eq "DEBUG"
+            n_debug=1
+
+#-- debug flag in cv ----------
+subcode: _autoload
+    $struct(CV) char debug
+
+subcode: debug_cv_begin
+    $if n_debug
+        $print >>>> cv begin ----
+        $dump i_local
+
+subcode: debug_cv_close
+    $if n_debug
+        $call debug_dump
+        cv->debug = n_debug
+        n_debug = 0
+
+    subcode: debug_dump
+        $print <<<< cv close ----
+        $dump lex_stack_len, i_local, cv->n_vars
+
+#-- runtime ----------
+subcode: debug_run_cv_enter
+    $if $(cv)->debug
+        n_debug = $(cv)->debug
+        $print "---- enter_scope: 0 global vars, %d local vars ", $(cv)->n_vars
+
+subcode: debug_run_cv_leave
+    $if $(cv)->debug
+        n_debug = 0
+        $print "---- leave_scope"
+
+#----------------------------------------------- 
+subcode: print_reduce_level
+    $for i=0:i_top-2
+        fputs(".", stdout)
+subcode: debug_reduce_binary
+    $if n_debug
+        $call print_reduce_level
+        $print reduce_binary: $(type)
+
+subcode: debug_reduce_unary
+    $if n_debug
+        $call print_reduce_level
+        $print reduce_unary T_$(T)
+
+subcode: debug_reduce_eoc
+    $if n_debug
+        $call print_reduce_level
+        $print "reduce_eoc %c - %c", $(op_boc), $(op_eoc)
+#----------------------------------------------- 
+subcode: debug_eval_op
+    $if n_debug
+        $for i=0:tn_level
+            fputs("  ", stdout)
+        $print "eval: %s", get_OP_name(op->type)
+
+#----------------------------------------------- 
+subcode: debug_find_var(s)
+    $if n_debug
+        $print "find %c var -> %d", *$(s), i_var
+#----------------------------------------------- 
+subcode: debug_AV_push
+    # $print "AV_push %p [%d %d]", av, av->i_0, av->i_n
+    $(if:0)
+        $if av->i_n>20
+            $call die, "AV_push tripped\n"
+
+subcode: debug_AV_free
+    $if n_debug
+        $print "AV_free %p", av

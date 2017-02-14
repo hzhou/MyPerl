@@ -4,13 +4,17 @@ subcode: _autoload
     $struct(TOK) int type, YYSTYPE value
     $global char* T_atom_names[]={DUMP_STUB T_atom_names}
     $global char* T_op_names[]={DUMP_STUB T_op_names}
+    $call setup_parser
 
 subcode: setup_parser
     $(setmacro:_op=0x0)
     $(setmacro:_atom=0)
-    $map op, pre, BOC
-    $map op, post, EOC
-    BLOCK
+    # begin of context/statement
+    $map op, pre, BOC, BOS
+    # end   of context/file
+    $map op, post, EOC, EOF
+    $call @define_parse_terms # atoms or special ops
+    $call @define_op_precedence
     $(block:T_atom_names)
         $: NULL
     $(block:T_op_names)
@@ -96,6 +100,7 @@ subcode: parse_frame
     $(set:type=stack[i_top-$1].type)
     $local s=NULL
     $while 1
+        lexer:
         $(if:debug_parse)
             $local i_loop=0
             i_loop++
@@ -104,16 +109,16 @@ subcode: parse_frame
         &call lexer
             s=f_skip_spaces(s)
             $if s==NULL
-                $call set_cur, T_EOC, 0
+                $call set_cur, T_EOF, 0
                 break
             $call @match
             $call error, "unexpected char"
 
         $if cur.type==T_BOC
-            stack[i_top++] = cur
             $call @shift_boc
-            continue
+            goto do_shift
 
+        try_reduce:
         &call try_reduce
             $if $(is_atom:cur.type)
                 $call check_atom_context
@@ -121,29 +126,31 @@ subcode: parse_frame
                 $call check_op_context
                 $if i_top<=1
                     break
-
                 &call if_less_precedence
                     $call @reduce
-                    continue
+                    # continue
                 $elif $(op_postfix:cur.type)
-                    $if cur.type==T_EOC
+                    $if cur.type==T_EOF
+                        $call @reduce_eof
+                    $elif cur.type==T_EOC
                         $call @reduce_eoc
                     $else
                         $call @reduce_postfix
-                    continue
+
         $if !cur.type
             continue
-        $call @pre_shift
-        &call shift
-            $if i_top==0
-                # EOF, ie (T_EOC, 0) reduces all
-                break
-            $else
-                stack[i_top++] = cur
+        $elif cur.type==T_EOF
+            break
+
+        do_shift:
+        $call shift_cur
     # --
     # $call @return
 
     # -------------------------
+    subcode: shift_cur
+        stack[i_top++] = cur
+
     subcode: lexer
         do {
             BLOCK
@@ -170,11 +177,15 @@ subcode: parse_frame
                     #   turn cur into uniop
                     $call @resolve_op_op
                     $call error, "unexpected operator!"
+            $elif $(is_atom:$(type:1))
+                $if $(op_prefix:cur.type)
+                    $call @resolve_atom_prefix
+                    $call error, "unexpected unary operator"
         subcode: if_less_precedence
             $(set:p0=$(op_prec:cur.type))
             $(set:p1=$(op_prec:$(type:2)))
             $if $(p0)<$(p1) || ($(p0)==$(p1) && $(op_left:cur.type))
                 BLOCK
 
-    subcode: shift
-        BLOCK
+        subcode: copy_stack(i1, i2)
+            memcpy(stack+$(i1), stack+$(i2), sizeof(struct TOK))

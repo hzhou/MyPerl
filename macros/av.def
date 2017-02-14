@@ -1,9 +1,10 @@
 subcode: _autoload
-    $struct(AV) struct SV* * p_array, i_0, i_n, n_size
+    $struct(AV) struct SV* * p_array, i_0, i_n, size
     $register_prefix(av) struct AV *
 
 macros:
     AV_HEADROOM: 10
+    av_count: ($1->i_n-$1->i_0)
 
 fncode: AV_new
     $local av
@@ -11,10 +12,10 @@ fncode: AV_new
     return av
 
 fncode: AV_free(av)
+    $call @debug_AV_free
     $if av->p_array
         $for i=av->i_0:av->i_n
             SV_refdec(av->p_array[i])
-            # free(sv)
         free(av->p_array)
     free(av)
 
@@ -31,12 +32,13 @@ fncode: AV_resize(av, n)
         tb_neg=1
         n=-n
 
-    $if av->n_size==0
+    $if av->size==0
+        # was empty
         $allocate(n) av->p_array
         av->i_0 = $(AV_HEADROOM)
         av->i_n = $(AV_HEADROOM)
-        av->n_size = n
-    $elif n < av->n_size
+        av->size = n
+    $elif n < av->size
         $if av->i_0 > $(AV_HEADROOM)
             $call simply_shift
     $else
@@ -51,7 +53,7 @@ fncode: AV_resize(av, n)
         $call copy, p_sv
         free(av->p_array)
         av->p_array=p_sv
-        av->n_size =n
+        av->size =n
 
     subcode: copy(dst)
         $my p_sv_1, p_sv_2, struct SV** p_sv_n
@@ -84,11 +86,12 @@ fncode: AV_resize(av, n)
 
 #----------------------------------------------- 
 fncode: AV_push(av, sv_value)
-    $if av->i_n+1 >= av->n_size
+    $call @debug_AV_push
+    $if av->i_n+1 >= av->size
         AV_resize(av, 0)
     av->p_array[av->i_n]=sv_value
     av->i_n++
-    # SV_ref_inc(sv_value)
+    SV_refinc(sv_value)
 
 # push/pop, caller responsible for ref_dec
 fncode: AV_pop(av)
@@ -104,17 +107,17 @@ fncode: AV_shift(av)
         return av->p_array[av->i_0-1]
 
 fncode: AV_grow(av, n)
-    $if av->i_n+n >= av->n_size
-        n_size=(av->i_n-av->i_0)+n+$(AV_HEADROOM)*2
-        AV_resize(av, n_size)
+    $if av->i_n+n >= av->size
+        size=(av->i_n-av->i_0)+n+$(AV_HEADROOM)*2
+        AV_resize(av, size)
 
     memset(av->p_array+av->i_n, 0, sizeof(struct SV*)*n)
     av->i_n += n
 
 fncode: AV_unshift(av, n)
     $if av->i_0 <= n
-        n_size=(av->i_n-av->i_0)+n+$(AV_HEADROOM)*2
-        AV_resize(av, -n_size)
+        size=(av->i_n-av->i_0)+n+$(AV_HEADROOM)*2
+        AV_resize(av, -size)
 
     av->i_0 -= n
     memset(av->p_array+av->i_0, 0, sizeof(struct SV*)*n)
@@ -140,4 +143,10 @@ fncode: AV_set(av, i, sv_value)
 subcode: av_each(av)
     $for i=$(av)->i_0:$(av)->i_n
         $(set:sv=$(av)->p_array[i])
+        BLOCK
+
+subcode: av_each_pair(av)
+    $for i=$(av)->i_0:$(av)->i_n:2
+        $(set:sv=$(av)->p_array[i])
+        $(set:sv2=$(av)->p_array[i+1])
         BLOCK

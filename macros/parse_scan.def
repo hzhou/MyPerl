@@ -67,6 +67,7 @@ subcode: src_skip_loop
 fncode: f_skip_line(s)
     &call src_skip_loop
         $if *s!='\n'
+            $call @debug_check_flag
             s++
         $else
             s++
@@ -77,13 +78,13 @@ fncode: f_skip_spaces(s)
         $if isspace(*s)
             s++
         $elif *s=='#'
-            return f_skip_line(s)
+            s= f_skip_line(s)
         $else
             return s
 
 fncode: f_skip_simple_spaces(s)
     &call src_skip_loop
-        $if isSPACE(*s)
+        $if isspace(*s)
             s++
         $else
             return s

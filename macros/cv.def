@@ -2,7 +2,84 @@ subcode: _autoload
     $struct(CV) stash, i_start, n_vars, op_block
     $register_prefix(cv) struct CV*
 
+    $global darray lex_stack: struct CV*
+    # compile time only need track size
+    $global i_local=0, i_global=0
+
 fncode: CV_new
     $local cv
     $allocate(1, 0) cv
     return cv
+
+#---- compile time parse_reduce ----------- 
+subcode: cv_begin
+    $call @debug_cv_begin
+    cv = CV_new()
+    stash_local = stash_new()
+    cv->i_start = i_local
+    cv->stash   = stash_local
+
+    lex_stack.$push cv
+
+    $if !stash_global
+        stash_global = stash_local
+
+subcode: cv_close(op_block)
+    cv = lex_stack.$pop
+    cv->n_vars   = i_local-cv->i_start
+    cv->op_block = $(op_block)
+
+    i_local = cv->i_start
+    stash_local = cv->stash
+    $call @debug_cv_close
+    $(export:cv=cv)
+
+# ------------------
+subcode: parse_init
+    $call cv_begin
+
+# -------------------
+subcode: reduce_eof
+    $if i_top==2
+        $call cv_close, stack[i_top-1].value.op
+        $if lex_stack_len!=0
+            $call error, "cv scope mismatch!"
+        stack[0].value.cv = $(cv)
+        i_top=0
+        break
+    $else
+        $print "EOF: i_top=$i_top"
+        $call error, "Context mis-match!"
+
+subcode:: define_parse_terms
+    # T_Stmt2 precedes block
+    $map op, pre, Stmt2
+
+subcode: reduce_cv
+    $call cv_close, $(block)
+    $call set_atom, OP_CV, $(cv)
+    i_top-=2
+
+    # need decide whether to append T_Semi
+    s = f_skip_spaces(s)
+
+    $(set:op_cv=cur.value.op)
+    $if $(type:1)==$1 :||: T_Semi, T_BOC
+        # bare block
+        $call shift_cur
+        $call set_cur, T_Semi, 0
+        continue
+    $elif $(type:1)==T_BOS
+        # e.g. do {...}
+        $(set:op=stack[i_top-1].value.op)
+        $(set:T=$(op)->type)
+        $call @reduce_statement_cv1
+        $call error, "cv1"
+    $elif $(type:2)==T_BOS
+        # e.g if(cond) {...}
+        $(set:op=stack[i_top-2].value.op)
+        $(set:op1=stack[i_top-1].value.op)
+        $(set:T=$(op)->type)
+        $call @reduce_statement_cv2
+        $call error, "cv2"
+    $call error, "unhandled block"
