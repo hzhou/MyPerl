@@ -5,13 +5,14 @@ include: macros/parse_scan.def
 include: macros/parse_error.def
 include: macros/parse_reduce.def
 
+include: macros/parse_resolve.def
+
 include: macros/parse_char.def
 include: macros/parse_keyword.def
 include: macros/parse_number.def
 include: macros/parse_string.def
 
 include: macros/parse_var.def
-include: macros/parse_statement.def
 # include: macros/parse_old.def
 
 subcode: _autoload

@@ -5,19 +5,19 @@ subcode: define_op_precedence
     $map op, right, not
     $map op, pre, FN_LIST
     $map op, left, Comma
-    $map op, right, =,+=,-=,*=,/=,.=,|=,&=,>>=,<<=
+    $map op, right, =,+=,-=,*=,/=,%=,.=,|=,&=,^=,>>=,<<=
     $map op, right, :, ?
     $map op, left, ..
     $map op, left, ||
     $map op, left, &&
-    $map op, left, |
+    $map op, left, |,^
     $map op, left, &
-    $map op, left, ==, !=, eq, ne
+    $map op, left, ==, !=, <=>, eq, ne, cmp
     $map op, left, <, >, <=, >=, lt, gt, le, ge
     $map op, left, FN_1
     $map op, left, >>, <<
     $map op, left, +, -, .
-    $map op, left, *, /, %
+    $map op, left, *, /, %, x
     $map op, left, =~
     $map op, pre, UMINUS, ~, !, UAMPER
     $map op, right, ** 
@@ -28,3 +28,10 @@ subcode: define_op_precedence
     
     # simple syntactic aliases
     $define(T_EqGt) T_Comma
+
+#-- notes ---------------------
+#-    x=: I never used this, woohoo for you
+#-   ||=, &&=: seriously?
+#-   &.=, |.=, ^.=: what are they?
+#-   //=: what is it?
+

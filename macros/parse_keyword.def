@@ -30,9 +30,9 @@ subcode: _autoload
     $global char* WORD_names[]={DUMP_STUB WORD_names}
 
 macros:
-    KEYOP_LIST:eq,ne,le,ge,lt,gt, or,and,not
-    KEY_FN_LIST: print,printf
-    KEY_OTHER: my,our,local, if,elsif,else,for,while
+    KEYOP_LIST:: eq,ne,le,ge,lt,gt,cmp, or,and,not, x, 
+    KEY_FN_LIST:: print,printf
+    KEY_OTHER:: my,our,local
 
 fncode: keyword_op(s)
     $return_type int

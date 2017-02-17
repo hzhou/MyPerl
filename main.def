@@ -3,6 +3,8 @@ include: macros/hv.def
 include: macros/sv.def
 include: macros/op.def
 
+include: macros/sv_string.def
+
 include: macros/stash.def
 include: macros/cv.def
 include: macros/cv_run.def
@@ -12,10 +14,11 @@ include: macros/sv_registers.def
 include: macros/eval_op.def
 
 include: macros/do_convert.def
+include: macros/do_bin_ops.def
 include: macros/do_print.def
 include: macros/do_variables.def
-include: macros/do_arithmetic.def
-include: macros/do_string_ops.def
+include: macros/do_switch.def
+include: macros/do_loop.def
 
 include: macros/parse_extra.def
 include: macros/debug.def

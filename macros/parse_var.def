@@ -1,12 +1,6 @@
+#-- ref: stash.def, cv.def
 macros:
     MAX_IDENT: 256
-
-subcode: _autoload
-    # stashes (symbol table)
-    $global darray g_stashes: struct stash *
-    $global stash_local=NULL, stash_global=NULL
-    $set_var_attr stash_local, class=stash
-    $set_var_attr stash_global, class=stash
 
 #----------------------------------------------- 
 #- note: index start at 1
@@ -22,14 +16,6 @@ subcode: add_global(i_var, name, len)
     stash_global.$set $(name), $(len), i_global
 
 #------------------- 
-# ref: macros/parse_reduce.def - push/pop_scope
-subcode: init_local
-    stash_local = stash_new()
-
-subcode: init_unit
-    # a file scope
-    stash_global = stash_local
-
 subcode: init_package(name, len)
     stash_global = stash_new()
     g_stashes.$push stash_global
@@ -79,12 +65,7 @@ subcode: match_variable
         # $PKG::var
         $if n_in_my
             $call error, "package var in my/our"
-        i_var = find_global($(s))
-        $if i_var
-            cur.type=T_ATOM
-            $call op_var, GLOBAL, i_var
-        $else
-            $call error, "package var not found"
+        $call @check_global, package
     $else
         # $print ... var $(s), n_in_my=$n_in_my
         $if n_in_my==WORD_our
@@ -102,14 +83,24 @@ subcode: match_variable
             $call op_var, MY, i_var
         $elif n_in_my==0
             i_var = find_local($(s))
-            $call @debug_find_var, $(s)
             $if i_var
                 cur.type=T_ATOM
                 $call op_var, LOCAL, i_var
             $else
-                $call error, "undeclared variable"
+                $call check_global, undeclared
         $else
             $call error, "can't happen"
+
+    subcode: check_global(type)
+        i_var = find_global($(s))
+        $if i_var
+            cur.type=T_ATOM
+            $call op_var, GLOBAL, i_var
+        $else
+            $(if:type=package)
+                $call error, "package var not found"
+            $(else)
+                $call die, "undeclared variable %s", $(s)
 
     # --------------------
     subcode: scan_variable
@@ -186,9 +177,18 @@ subcode: check_reduce_var_index
 
 #----- lexical stash -------------------
 #-- stash is HV except values are int
-#----
+#-- ref: cv.def - cv_begin/cv_close
 fncode: find_local(s_name)
-    return stash_local.$get s_name, 0
+    $local stash
+    i = lex_stack_len
+    stash = stash_local
+    $while i>0
+        tn_var = f_stash_get(stash, s_name, 0)
+        $if tn_var
+            return tn_var
+        i--
+        stash = lex_stack[i]->stash
+    return 0
 
 fncode: find_global(s_name)
     # assume s_name is null-terminated

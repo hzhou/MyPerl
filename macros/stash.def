@@ -1,8 +1,15 @@
+# stashes (symbol table)
 subcode: _autoload
     $class stash
     $struct(stash) $(strhash_member), int* p_val
     $register_prefix(stash) struct stash *
     $list stash_new, f_stash_get
+
+subcode: _autoload
+    $global darray g_stashes: struct stash *
+    $global stash_local=NULL, stash_global=NULL
+    $set_var_attr stash_local, class=stash
+    $set_var_attr stash_global, class=stash
 
 fncode: stash_new
     $allocate(1, 0) stash

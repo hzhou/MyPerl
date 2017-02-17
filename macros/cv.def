@@ -15,11 +15,11 @@ fncode: CV_new
 subcode: cv_begin
     $call @debug_cv_begin
     cv = CV_new()
-    stash_local = stash_new()
     cv->i_start = i_local
     cv->stash   = stash_local
 
     lex_stack.$push cv
+    stash_local = stash_new()
 
     $if !stash_global
         stash_global = stash_local
@@ -83,3 +83,17 @@ subcode: reduce_cv
         $call @reduce_statement_cv2
         $call error, "cv2"
     $call error, "unhandled block"
+
+    subcode: cv1_done
+        $(type:1)=T_ATOM
+        $call set_cur, T_Semi, 0
+        continue
+
+    subcode: cv2_next
+        i_top-=1
+        cur.type = 0
+        break
+
+    subcode: cv2_done
+        i_top-=1
+        $call cv1_done

@@ -5,31 +5,27 @@ subcode: _autoload
 
     $global char* OP_names[]={DUMP_STUB OP_names}
 
+    $(setmacro:_op_idx=0x0)
+    $(setmacro:_op_flag=00)
     $call @define_ops
 
 subcode:: define_ops
     $map define_op, SEQ, LIST, CONST, CV
-
+    # ----
     subcode: define_op(name)
         $(setmacro:_op_idx+=1)
-        $define(OP_$(name)) $(_op_idx)
+        $define(OP_$(name)) $(_op_idx)$(_op_flag)
         $(block:OP_names)
             "OP_$(name)",
 
-    subcode: define_op_sym(o)
-        $call define_op, $(sym:$(o))
-
-    subcode: define_range(name)
-        $call define_op, $(name)_a
+    subcode: define_group(flag)
+        $(setmacro:_op_flag=$(flag))
         BLOCK
-        $call define_op, $(name)_z
-
-macros:
-    op_is: op->type>OP_$1_a && op->type<OP_$1_z
+        $(setmacro:_op_flag=00)
 
 fncode: get_OP_name(n_OP)
     $return_type char*
-    return OP_names[n_OP-1]
+    return OP_names[(n_OP>>8)-1]
 
 #----------------------------------------------- 
 subcode: set_op_leaf(left, v)
@@ -76,7 +72,6 @@ fncode: f_flatten_op_list(op, tn_type)
     &call iter
         i++
         op_list[tn_count-i] = *(op_tmp->right.op)
-        $print "  :%d %s", tn_count-i, get_OP_name(op_list[tn_count-i].type)
     op_list[0] = *(op_tmp->left.op)
     op->left.n = tn_count
     op->right.op = op_list

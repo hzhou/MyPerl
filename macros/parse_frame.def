@@ -78,7 +78,7 @@ macros:
     # (, [, {: use char value, bof: use 0
 macros:
     MAX_TOK_STACK: 100
-    debug_parse: 100
+    # debug_parse: 100
 
 # f_skip_spaces: custom function
 #     which [re]loads src string
@@ -98,6 +98,7 @@ subcode: parse_frame
     $call @parse_init
 
     $(set:type=stack[i_top-$1].type)
+    $(set:value=stack[i_top-$1].value)
     $local s=NULL
     $while 1
         lexer:

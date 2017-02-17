@@ -1,3 +1,6 @@
+macros:
+    KEY_OTHER:: if,elsif,else
+
 subcode:: define_ops
     $map define_op, IF, ELIF, ELSE
 
@@ -11,43 +14,35 @@ subcode:: parse_keyword_other
 subcode:: reduce_statement_cv2
     $case $(T)==OP_IF || $(T)==OP_ELIF
         $if $(T)==OP_IF
-            $print "reduce cv2 OP_IF: %p - %p, %p", $(op), $(op1), $(op_cv)
             op = $(op)
             op->left.op = $(op1)
             op->right.op = $(op_cv)
         $else
-            $print "reduce cv2 OP_ELIF: %p - %p, %p", $(op), $(op1), $(op_cv)
             $(T)=OP_IF
             $call op_list, op_tmp, OP_IF, $(op), $(op1)
             $call op_list, op, OP_IF, op_tmp, $(op_cv)
             $(op) = op
-        i_top-=1
-        cur.type = 0
         # $(type:1)=T_BOS
         # ------------------------------
         $if s $eq "else" && !isword(s[4])
             s+=4
             op->type = OP_ELSE
+            $call cv2_next
         $elif s $eq "elsif" && !isword(s[5])
             s+=5
             op->type = OP_ELIF
+            $call cv2_next
         $else
-            $(type:1)=T_ATOM
             f_flatten_op_list(op, OP_IF)
-            $call set_cur, T_Semi, 0
-            continue
-        break
+            $call cv2_done
 
 subcode:: reduce_statement_cv1
     $case $(T) == OP_ELSE
         $(T) = OP_IF
         $call op_list, op, OP_IF, $(op), $(op_cv)
-        $print "reduce cv1 OP_ELSE: %p - %p, %p", op, $(op), $(op_cv)
         $(op) = op
-        $(type:1)=T_ATOM
         f_flatten_op_list(op, OP_IF)
-        $call set_cur, T_Semi, 0
-        continue
+        $call cv1_done
 
 #----------------------------------------------- 
 subcode:: eval_ops
@@ -56,7 +51,7 @@ subcode:: eval_ops
         $if n>8 || n<=0
             $call die, "error OP_IF %p n=$n", op
         op_list = op->right.op
-        $print " eval_ops OP_IF n=$n op_list=%p", op_list
+        # $print " eval_ops OP_IF n=$n op_list=%p", op_list
 
         i_else=0
         $if n%2==1
@@ -64,10 +59,10 @@ subcode:: eval_ops
             n--
 
         $for i=0:n:2
-            sv_cond = eval_op(&op_list[i], $(CTX))
+            sv_cond = eval_op(&op_list[i], $(CTX_BOOL))
             tn_bool = do_bool(sv_cond)
             $call ret_svreg, sv_cond
-            $if do_bool(sv_cond)
+            $if tn_bool
                 return eval_op(&op_list[i+1],$(CTX))
         $if i_else
             return eval_op(&op_list[i_else],$(CTX))

@@ -3,9 +3,11 @@ macros:
     CTX_SCALAR: 0, tn_level+1
     CTX_LIST: 1, tn_level+1
     CTX_LEFT: 2, tn_level+1
+    CTX_BOOL: 3, tn_level+1
 
     IS_LIST: tn_context==1
     IS_LEFT: tn_context==2
+    IS_BOOL: tn_context==3
 
     PARAM_CTX: tn_context, tn_level
 
@@ -18,19 +20,23 @@ fncode: eval_op
 
     $if !op
         return NULL
-    $elif $(opT:SEQ)
-        eval_op($(L), 0, tn_level)
-        return eval_op($(R), 0, tn_level)
     $call @debug_eval_op
-    $if $(opT:CV)
-        return run_cv(op->right.cv)
-    $elif $(opT:CONST)
-        return op->right.sv
-    $elif $(opT:LIST)
-        return eval_list($(L), $(R), $(CTX))
-    $call @eval_ops
-    $else
-        $call die, "unsupported op: %s", get_OP_name(op->type)
+    switch(op->type){
+        case OP_SEQ:
+            eval_op($(L), 0, tn_level)
+            return eval_op($(R), 0, tn_level)
+        case OP_CV:
+            return run_cv(op->right.cv)
+        case OP_CONST:
+            return op->right.sv
+        case OP_LIST:
+            return eval_list($(L), $(R), $(CTX))
+        $call @eval_op_cases
+        default:
+            $call @eval_op_group
+            break    
+    }
+    $call die, "unsupported op: %s", get_OP_name(op->type)
     return NULL
 
 fncode: eval_list
@@ -63,7 +69,4 @@ fncode: eval_list
                 AV_push($(av_list), $(sv))
         $else
             AV_push($(av_list), $(sv_item))
-
-#----------------------------------------------- 
-include: macros/do_arithmetic.def
 

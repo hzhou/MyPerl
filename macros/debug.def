@@ -53,7 +53,7 @@ subcode: debug_reduce_binary
 subcode: debug_reduce_unary
     $if n_debug
         $call print_reduce_level
-        $print reduce_unary T_$(T)
+        $print reduce_unary $(T)
 
 subcode: debug_reduce_eoc
     $if n_debug
@@ -66,6 +66,9 @@ subcode: debug_eval_op
             fputs("  ", stdout)
         $print "eval: %s", get_OP_name(op->type)
 
+subcode: debug_eval_bin_op
+    $if !sv
+        $call die, "unhandled bin op"
 #----------------------------------------------- 
 subcode: debug_find_var(s)
     $if n_debug

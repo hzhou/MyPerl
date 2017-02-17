@@ -1,3 +1,5 @@
+include: macros/sv_string.def
+
 subcode: _autoload
     $register_prefix(sv) struct SV*
     $register_prefix(av) struct AV*
@@ -59,30 +61,6 @@ subcode: sv_set_f(sv, f)
     $(sv)->type = SVt_float
     $(sv)->value.f=$(f)
 
-fncode: SV_set_const(sv, s, n)
-    # I am not sure if we need this at all
-    # .size=0, do not free
-    $if n==0
-        n=strlen(s)
-    sv->type = SVt_const
-    sv->value.S.s=s
-    sv->value.S.n=n
-    
-fncode: SV_copy_s(sv, s, n)
-    $if n==0
-        n=strlen(s)
-    sv->type = SVt_string
-    $allocate(n+1) sv->value.S.s
-    memcpy(sv->value.S.s, s, n)
-    sv->value.S.n = n
-    sv->value.S.size= n+1
-
-subcode: if_sv_string(sv)
-    $if $(sv) && $(sv)->type==SVt_string
-        $(set:s=$(sv)->value.S.s)
-        $(set:n=$(sv)->value.S.n)
-        BLOCK
-
 # -------------------------------------
 fncode: SV_set_p(sv, void* p, int type)
     sv->type = type
@@ -97,6 +75,8 @@ fncode: SV_refdec(sv)
     $if sv->refcnt>0
         sv->refcnt--
         $if sv->refcnt==0
+            $(set:T=sv->type==SVt_$1)
+            $call @sv_ref_release
             $if sv->type == SVt_string && sv->value.S.size>0
                 free(sv->value.S.s)
             $elif sv->type == SVt_sv
@@ -108,87 +88,7 @@ fncode: SV_refdec(sv)
             $elif sv->type == SVt_io
                 fclose((FILE*)sv->value.p)
 
-#---- String ---------------------------
-fncode: SV_resize(sv, n)
-    $call assert, sv->type==SVt_string
-    $(set:S=sv->value.S)
-    $if n==0
-        n=$(S).size*5/3+20
-
-    $if n>$(S).size
-        $(S).s = realloc($(S).s, n)
-        $(S).size = n
-
-fncode: SV_append_s(sv, s, n)
-    $call assert, sv->type==SVt_string
-    $(set:S=sv->value.S)
-    SV_resize(sv, $(S).n+n)
-    memcpy($(S).s+$(S).n, s, n)
-    $(S).n+=n
-
-fncode: SV_append_i(sv, i)
-    $call assert, sv->type==SVt_string
-    $(set:S=sv->value.S)
-    SV_resize(sv, $(S).n+30)
-    n=sprintf($(S).s+$(S).n, "%d", i)
-    $(S).n+=n
-
-fncode: SV_append_f(sv, double f)
-    $call assert, sv->type==SVt_string
-    $(set:S=sv->value.S)
-    SV_resize(sv, $(S).n+30)
-    n=sprintf($(S).s+$(S).n, "%.8g", f)
-    $(S).n+=n
-
-#----- conversions ----------------
-#--      sv to number 
-subcode: sv_int(sv, n)
-    $if $(sv)->type == SVt_int
-        $(n) = $(sv)->value.n
-    $elif $(sv)->type == SVt_float
-        $(n) = (int)$(sv)->value.f
-    $(if:!skip_string)
-        $elif $(sv)->type == SVt_string
-            $(n) = sv_string_int($(sv))
-    $else
-        $(n) = 0
-
-subcode: sv_float(sv, f)
-    $if $(sv)->type == SVt_int
-        $(f) = (double)$(sv)->value.n
-    $elif $(sv)->type == SVt_float
-        $(f) = $(sv)->value.f
-    $(if:!skip_string)
-        $elif $(sv)->type == SVt_string
-            $(f) = sv_string_float($(sv))
-    $else
-        $(f) = 0.0
-
 macros:
     sv_av: (struct AV*)$1->value.p
     sv_hv: (struct HV*)$1->value.p
     
-#-- string to number
-fncode: sv_string_int(sv)
-    $call fn_string_number, n
-
-fncode: sv_string_float(sv)
-    $call fn_string_number, f
-
-subcode: fn_string_number(n)
-    sv_tmp=get_svreg()
-    $(set:S=sv->value.S)
-    $(S).s[$(S).n]='\0'
-    f_get_number($(S).s, sv_tmp)
-
-    $(set:skip_string=1)
-    $(if:n=n)
-        $local n
-        $call sv_int, sv_tmp, n
-    $(elif:n=f)
-        $local double f
-        $call sv_float, sv_tmp, f
-
-    $call ret_svreg, sv_tmp
-    return $(n)
-
