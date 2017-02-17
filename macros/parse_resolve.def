@@ -1,0 +1,8 @@
+subcode:: resolve_atom_prefix
+    $case cur.type==T_$(sym:++)
+        $if $(type:1)==T_ATOM
+            op_a = $(value:1).op
+            $call new_op, op_b, OP_CONST, sv_TRUE
+            $call new_op2, op, OP_$(sym:+=), op_a, op_b
+            $(value:1).op = op
+            goto lexer

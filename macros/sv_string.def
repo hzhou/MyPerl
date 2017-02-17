@@ -1,0 +1,82 @@
+#----------------------------------------------- 
+subcode: if_sv_string(sv)
+    $if $(sv) && $(sv)->type==SVt_string
+        &call with_sv_string, $(sv)
+            BLOCK
+
+subcode: with_sv_string(sv)
+    $(set:s=$(sv)->value.S.s)
+    $(set:n=$(sv)->value.S.n)
+    $(set:size=$(sv)->value.S.size)
+    BLOCK
+
+subcode: sv_set_s(sv, s, n, size)
+    $(sv)->type = SVt_string
+    $(sv)->value.S.s=$(s)
+    $(sv)->value.S.n=$(n)
+    $(sv)->value.S.size=$(size)
+
+subcode: sv_string_init(sv)
+    $call sv_set_s, $(sv), NULL, 0, 0
+
+# copy on write: s!=0, n>0, and size=0
+subcode:: sv_on_write(sv)
+    &call if_sv_string, $(sv)
+        $if $(s) && $(size)==0
+            $my s, n
+            n = $(n)*5/3+20
+            $allocate(n) s
+            memcpy(s, $(s), $(n))
+            $(size)=n
+
+subcode:: sv_ref_release
+    $case $(T:string)
+        &call with_sv_string, sv
+            $if $(size)>0
+                free($(s))
+
+#----------------------------------------------- 
+fncode: SV_copy_s(sv, s, n)
+    $local s2
+    $allocate(n+1) s2
+    memcpy(s2, s, n)
+    $call sv_set_s, sv, s2, n, n+1
+
+#---- string functions -------------------------- 
+fncode: SV_resize(sv, n)
+    $call assert, sv->type==SVt_string
+    $(set:S=sv->value.S)
+    $if n==0
+        n=$(S).size*5/3+20
+
+    $if n>$(S).size
+        $(S).s = realloc($(S).s, n)
+        $(S).size = n
+
+fncode: SV_append_sv(sv, sv_b)
+    sv_s_b = do_string(sv_b)
+    &call with_sv_string, sv_s_b
+        SV_append_s(sv, $(s), $(n))
+    $call ret_svreg, sv_s_b
+
+fncode: SV_append_s(sv, s, n)
+    $call assert, sv->type==SVt_string
+    $(set:S=sv->value.S)
+    SV_resize(sv, $(S).n+n)
+    memcpy($(S).s+$(S).n, s, n)
+    $(S).n+=n
+
+fncode: SV_append_i(sv, i)
+    $call assert, sv->type==SVt_string
+    $(set:S=sv->value.S)
+    SV_resize(sv, $(S).n+30)
+    n=sprintf($(S).s+$(S).n, "%d", i)
+    $(S).n+=n
+
+fncode: SV_append_f(sv, double f)
+    $call assert, sv->type==SVt_string
+    $(set:S=sv->value.S)
+    SV_resize(sv, $(S).n+30)
+    n=sprintf($(S).s+$(S).n, "%.8g", f)
+    $(S).n+=n
+

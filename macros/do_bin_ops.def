@@ -1,0 +1,215 @@
+macros:
+    arith_ops_sym:: +, -, *, /, %
+    bit_ops_sym::   |, &, ^, >>, <<
+    rel_ops_sym:: ==,!=,<,>,<=,>=,<=>
+    str_ops_sym:: x, .
+    str_ops_rel:: eq,ne,lt,gt,le,ge,cmp
+
+#----------------------------------------------- 
+subcode:: reduce_binary_cases
+    $map BIN_sym, $(arith_ops_sym),$(bit_ops_sym),$(rel_ops_sym),$(str_ops_sym)
+    $map BIN_op, $(str_ops_rel)
+    $map BIN_opeq, $(arith_ops_sym),$(bit_ops_sym),.
+
+    subcode: BIN_opeq(v)
+        $call BIN, $(sym:$(v)=), OP_$(sym:$(v)=)
+#----------------------------------------------- 
+subcode:: define_ops
+    $define(OPf_bin) 0x1
+    $define(OPf_bin_assign) 0x2
+    $define(OPf_bin_rel) 0x4
+    $define(OPf_num) 0x10
+    $define(OPf_int) 0x20
+    $define(Opf_string) 0x40
+    $define(Opf_other) 0x80
+
+    &call define_group, 11 # num, bin
+        $map define_op_sym, +,-,*,/,**
+    &call define_group, 31 # int, num, bin
+        $map define_op_sym, %,|,&,^,>>,<<
+    &call define_group, 41 # string, bin
+        $map define_op_sym, .,x
+
+    &call define_group, 15 # num, rel, bin
+        $map define_op_sym, ==,!=,<,>,<=,>=,<=>
+    &call define_group, 45 # string, rel, bin
+        $map define_op_sym, eq,ne,lt,gt,le,ge,cmp
+
+    &call define_group, 12 # num, =
+        $map define_op_eq, +,-,*,/
+    &call define_group, 32 # int, num, =
+        $map define_op_eq, %,|,&,^,>>,<<
+    &call define_group, 42 # string, =
+        $map define_op_eq, .
+
+    # ----
+    subcode: define_op_sym(o)
+        $call define_op, $(sym:$(o))
+    subcode: define_op_eq(o)
+        $call define_op, $(sym:$(o)=)
+
+macros:
+    op_is_bin: op->type & 0x1
+    op_is_rel: op->type & 0x4
+    op_is_opeq: op->type & 0x2
+    op_is_num: op->type & 0x10
+    op_is_string: op->type & 0x40
+
+subcode:: eval_op_group
+    $if $(op_is_bin)
+        sv_a = eval_op($(L), $(CTX))
+        sv_b = eval_op($(R), $(CTX))
+        sv=NULL
+        $if $(op_is_rel)
+            $if $(op_is_string)
+                $call do_rel_string
+            $elif $(op_is_num)
+                $call do_rel_num
+            $call @do_rel
+        $else
+            $if $(op_is_string)
+                $call do_bin_string
+            $elif $(op_is_num)
+                $call do_bin_num
+            $call @do_binary
+        done_bin:
+        $map ret_svreg, sv_a, sv_b
+        $call @debug_eval_bin_op
+        return sv
+    $elif $(op_is_opeq)
+        sv_a = eval_op($(L), $(CTX_LEFT))
+        sv_b = eval_op($(R), $(CTX))
+        $if $(op_is_string)
+            $call do_opeq_string
+        $elif $(op_is_num)
+            $call do_opeq_num
+        $call @do_opeq
+        done_opeq:
+        $call ret_svreg, sv_b
+        return sv_a
+
+#----------------------------------------------- 
+subcode: do_bin_string
+    sv = get_svreg()
+    $call sv_string_init, sv
+    $if $(opT:$(sym:.))
+        SV_append_sv(sv, sv_a)
+        SV_append_sv(sv, sv_b)
+    $elif $(opT:x)
+        n = do_int(sv_b)
+        $for i=0:n
+            SV_append_sv(sv, sv_a)
+
+subcode: do_opeq_string
+    SV_to_string(sv_a)
+    $if $(opT:$(sym:.))
+        SV_append_sv(sv_a, sv_b)
+    $elif $(opT:x)
+        n = do_int(sv_b)
+        &call with_sv_string, sv_a
+            n1 = $(n)
+            n2 = n1 * n
+            SV_resize(sv_a, n2)
+            $for i=1:n
+                memcpy($(s)+n1*i, $(s), n1)
+            $(n) = n2
+
+#-----------------
+subcode: do_bin_num
+    $(set:f=$1->type==SVt_float)
+    $if $(f:sv_a) || $(f:sv_b) || $(opT:$(sym:/))
+        f1 = do_float(sv_a)
+        f2 = do_float(sv_b)
+        $(for:o in +,-,*,/)
+            $case $(opT:$(sym:$(o)))
+                f1 $(o)= f2
+        $elif $(opT:$(sym:**))
+            f1 = pow(f1, f2)
+        $call _sv_set, f
+    # int 
+    $if 1
+        n1 = do_int(sv_a)
+        n2 = do_int(sv_b)
+        $(for:o in +,-,*,/,%,$(bit_ops_sym))
+            $case $(opT:$(sym:$(o)))
+                n1 $(o)= n2
+        $call _sv_set, n
+
+    subcode: _sv_set(f)
+        $(if:is_opeq)
+            $(if:f=f)
+                SV_to_float(sv_a)
+            $(else)
+                SV_to_int(sv_a)
+            $call sv_set_$(f), sv_a, $(f)1
+        $(else)
+            sv = get_svreg()
+            $call sv_set_$(f), sv, $(f)1
+            goto done_bin
+        
+subcode: do_opeq_num
+    $(set:is_opeq=1)
+    $call do_bin_num
+
+#----------------------------------------------- 
+#-- relation op, return sv_TRUE/sv_FALSE
+subcode: do_rel_num
+    $(set:f=$1->type==SVt_float)
+    $if $(f:sv_a) || $(f:sv_b)
+        f1 = do_float(sv_a)
+        f2 = do_float(sv_b)
+        $call switch_op, f
+    $else
+        n1 = do_int(sv_a)
+        n2 = do_int(sv_b)
+        $call switch_op, n
+
+    subcode: switch_op(f)
+        $(set:a=$(f)1)
+        $(set:b=$(f)2)
+        switch(op->type){
+            $map bool_case, ==,!=,<,>,<=,>=
+            case OP_$(sym:<=>):
+                sv = get_svreg()
+                $if $(a)==$(b)
+                    $call sv_set_n, sv, 0
+                $elif $(a)<$(b)
+                    $call sv_set_n, sv, -1
+                $else
+                    $call sv_set_n, sv, 1
+        }
+    subcode: bool_case(o)
+        case OP_$(sym:$(o)):
+            sv = $(a)$(o)$(b)?sv_TRUE:sv_FALSE
+            break
+
+subcode: do_rel_string
+    sv_s_a = do_string(sv_a)
+    sv_s_b = do_string(sv_b)
+    $(set:S=sv_s_$1->value.S)
+    n= $(S:a).n
+    n ?<= $(S:b).n
+    tn_ret = strncmp($(S:a).s, $(S:b).s, n)
+    $map ret_svreg, sv_s_a, sv_s_b
+
+    switch (op->type){
+        $call bool_case, eq, tn_ret==0
+        $call bool_case, ne, tn_ret!=0
+        $call bool_case, lt, tn_ret<0
+        $call bool_case, gt, tn_ret>0
+        $call bool_case, le, tn_ret<=0
+        $call bool_case, ge, tn_ret>=0
+        case OP_cmp:
+            sv = get_svreg()
+            $call sv_set_n, sv, tn_ret
+    }
+
+    subcode: bool_case(T, cond)
+        case OP_$(T):
+            sv = $(cond)?sv_TRUE:sv_FALSE
+            break
+
+
+
+
+
