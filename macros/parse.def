@@ -57,6 +57,8 @@ fncode: perl_parse(s_in, file_in)
         $(set:op_boc=stack[i_top-2].value.n)
         $(set:block=stack[i_top-1].value.op)
         $call @debug_reduce_eoc
+        $if $(block)->type == OP_SEQ
+            f_flatten_op_list($(block), OP_SEQ)
         $if $(op_eoc)==0
             $call reduce_eof
         $else

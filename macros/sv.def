@@ -1,27 +1,13 @@
 include: macros/sv_string.def
 
+macros:
+    SV_UNION:: n, f, struct STRING S, void* p
+    SV_UNION:: struct INTEGER N, struct FLOAT F
+
 subcode: _autoload
-    $register_prefix(sv) struct SV*
-    $register_prefix(av) struct AV*
-    $register_prefix(hv) struct HV*
-    $register_prefix(cv) struct CV*
-    $register_prefix(io) FILE *
-
-    $register_name(f) double
-    $register_prefix(f) double
-
-    $struct(STRING) s, n, size
-    $struct(INTEGER) uint64_t* p, char sign, short n, size
-    $struct(FLOAT) f, f_eps
+    $call @define_sv_types
     $struct(SV) char type, char flag, int refcnt, union value
-    $union n, f, void* p, struct STRING S, struct INTEGER N, struct FLOAT F
-
-    $global char* SV_names[]={DUMP_STUB SV_names}
-    $(block:SV_names)
-        "NULL",
-    $map define_sv_type, int, float, number
-    $map define_sv_type, const, string, integer, fixed
-    $map define_sv_type, sv, av, hv, cv, io
+    $union $(SV_UNION)
 
     #- const: e.g. part of OP code (literal const)
     #- register: get_svreg(), holds intermediate
@@ -37,21 +23,44 @@ subcode: _autoload
         $call sv_set_n, sv_TRUE, 1
         $call sv_set_n, sv_FALSE, 0
 
+subcode:: define_sv_types
+    $register_prefix(sv) struct SV*
+    $register_prefix(av) struct AV*
+    $register_prefix(hv) struct HV*
+    $register_prefix(cv) struct CV*
+    $register_prefix(io) FILE *
+
+    $register_name(f) double
+    $register_prefix(f) double
+
+    $global char* SV_names[]={DUMP_STUB SV_names}
+    $(block:SV_names)
+        "NULL",
+    $map define_sv_type, int, float, number
+    $map define_sv_type, const, string, integer, fixed
+    $map define_sv_type, sv, av, hv, cv, io
+
+    subcode: define_sv_type(T)
+        $(setmacro:_sv_type+=1)
+        $define(SVt_$(T)) $(_sv_type)
+        $(block:SV_names)
+            "SVt_$(T)",
+
+subcode:: define_sv_types
+    $struct(STRING) s, n, size
+    $struct(INTEGER) uint64_t* p, char sign, short n, size
+    $struct(FLOAT) f, f_eps
+    $struct(COMPLEX) f_r, f_i
+
+fncode: get_SV_name(n_type)
+    return SV_names[n_type]
+
 macros: 
     sv_size: sizeof(struct SV)
     sv_is_reg: ($1->flag&3)==SVf_register
     sv_is_const: ($1->flag&3)==SVf_const
     sv_is_var: ($1->flag&3)==SVf_var
     
-subcode: define_sv_type(T)
-    $(setmacro:_sv_type+=1)
-    $define(SVt_$(T)) $(_sv_type)
-    $(block:SV_names)
-        "SVt_$(T)",
-
-fncode: get_SV_name(n_type)
-    return SV_names[n_type]
-
 #----------------------------------------------- 
 subcode: sv_set_n(sv, n)
     $(sv)->type = SVt_int

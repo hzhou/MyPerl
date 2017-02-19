@@ -22,6 +22,8 @@ fncode: eval_op
         return NULL
     $call @debug_eval_op
     switch(op->type){
+        case OP_NOOP:
+            return NULL
         case OP_SEQ:
             eval_op($(L), 0, tn_level)
             return eval_op($(R), 0, tn_level)

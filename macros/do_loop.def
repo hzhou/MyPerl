@@ -9,25 +9,49 @@ subcode:: parse_keyword_other
         $elif tn_word == WORD_$(w)
             $call new_op, op, OP_$(w), 0
             $call set_cur, T_BOS, op
+            $call cv_begin
 
 subcode:: reduce_statement_cv2
     $case $(T)==OP_while
-        op = $(op)
-        op->left.op = $(op1)
-        op->right.op = $(op_cv)
-        $call cv2_done
+        $(set:init=NULL)
+        $(set:cond=$(op1))
+        $(set:cont=NULL)
+        $call reduce_loop_cv2
+
+subcode:: reduce_statement_cv2
     $case $(T)==OP_for
         $call @assert, $(op1)->type==OP_SEQ
+        $call @assert, $(op1)->left.op->type==OP_SEQ
+        $(set:init=$(op1)->left.op->left.op)
+        $(set:cond=$(op1)->left.op->right.op)
+        $(set:cont=$(op1)->right.op)
+        $call reduce_loop_cv2
+
+subcode:: reduce_statement_cv2
+    subcode: reduce_loop_cv2
+        $(set:N=5)
+        $call new_op_loop_goto, 1
+        $call new_op_loop_cond, $(N)
+        $call make_op_list, $(N), $(init), op_cond, $(op_cv), $(cont), op_goto
+        $call @wrap_scope
+        $call cv2_done
+
+        subcode: make_op_list(N, @plist)
+            op_list = get_op_list($(N))
+            $(for:a in $(plist))
+                $(if:a!=NULL)
+                    op_list[$(_i)] = *($(a))
+            $call new_op2, op, OP_block, $(N), op_list
+
+        subcode: new_op_loop_goto(i)
+            $call new_op, op_goto, OP_goto, $(i)
+
+        subcode: new_op_loop_cond(N)
+            $call new_op, op_break, OP_goto, $(N)
+            op_cond=f_new_op(OP_IF_NO,$(cond),op_break)
+    subcode: wrap_scope
+        $call cv_close, op
+        $call new_op, op_cv, OP_CV, $(cv)
+        $(op) = op_cv
 
 #----------------------------------------------- 
-subcode:: eval_ops
-    $elif $(opT:WHILE)
-        $while 1
-            sv_cond = eval_op(op->left.op, $(CTX_BOOL))
-            tn_bool = do_bool(sv_cond)
-            $call ret_svreg, sv_cond
-            $if tn_bool
-                eval_op(op->right.op, $(CTX))
-            $else
-                break
-

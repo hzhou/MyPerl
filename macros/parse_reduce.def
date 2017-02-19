@@ -50,7 +50,7 @@ subcode:: reduce_binary
     subcode: BIN(v, type)
         case T_$(v):
             $call @debug_reduce_binary
-            $call op_list, op, $(type), $(term1), $(term2)
+            op=f_new_op($(type),$(term1),$(term2))
             break
 
 subcode:: resolve_op_op

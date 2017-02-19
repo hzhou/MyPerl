@@ -8,9 +8,10 @@ include: macros/sv_string.def
 include: macros/stash.def
 include: macros/cv.def
 include: macros/cv_run.def
+include: macros/registers.def
+include: macros/heap.def
 
 include: macros/parse.def
-include: macros/sv_registers.def
 include: macros/eval_op.def
 
 include: macros/do_convert.def

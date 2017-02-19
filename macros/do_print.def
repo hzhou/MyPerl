@@ -9,8 +9,9 @@ subcode:: reduce_keyword_prefix
 subcode:: define_ops
     $map define_op, PRINT, PRINTF
 
-subcode:: eval_ops
-    $elif $(opT:PRINT) || $(opT:PRINTF)
+subcode:: eval_op_cases
+    case OP_PRINT:
+    case OP_PRINTF:
         sv_a = eval_op($(L), $(CTX))
         sv_b = eval_list(NULL, $(R), $(CTX))
         av = $(sv_av:sv_b)
@@ -19,6 +20,7 @@ subcode:: eval_ops
         $else
             do_printf(sv_a, av)
         $map ret_svreg, sv_a, sv_b
+        return NULL
 
 #----------------------------------------------- 
 fncode: do_print(sv_io, av)

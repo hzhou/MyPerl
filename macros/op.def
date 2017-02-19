@@ -10,6 +10,7 @@ subcode: _autoload
     $call @define_ops
 
 subcode:: define_ops
+    $define(OP_NOOP) 0
     $map define_op, SEQ, LIST, CONST, CV
     # ----
     subcode: define_op(name)
@@ -43,6 +44,7 @@ subcode: set_op_leaf(left, v)
 subcode: new_op(op, type, v)
     $(op) = get_op()
     $(op)->type = $(type)
+    $(op)->right.op=NULL
     $call set_op_leaf, right, $(v)
 
 subcode: new_op2(op, type, left, right)
@@ -51,29 +53,20 @@ subcode: new_op2(op, type, left, right)
     $call set_op_leaf, left, $(left)
     $call set_op_leaf, right, $(right)
 
-subcode: op_list(op, type, op1, op2)
-    # we'll flatten it in the end
-    $(op)=get_op()
-    $(op)->type=$(type)
-    $(op)->left.op = $(op1)
-    $(op)->right.op = $(op2)
+fncode: f_new_op(tn_type, op_a, op_b)
+    op = get_op()
+    op->type = tn_type
+    op->left.op = op_a
+    op->right.op = op_b
+    return op
 
 #----------------------------------------------- 
 fncode: f_flatten_op_list(op, tn_type)
-    tn_count=0
-    &call iter
-        tn_count++
-    tn_count++
-
-    op_list = get_op_list(tn_count)
-    $print "flatten %p-%p %s, $tn_count items", op, op_list,  get_OP_name(tn_type)
-
-    i=0
-    &call iter
-        i++
-        op_list[tn_count-i] = *(op_tmp->right.op)
-    op_list[0] = *(op_tmp->left.op)
-    op->left.n = tn_count
+    n = f_op_iter_count(op, tn_type)
+    op_list = get_op_list(n)
+    # $print "flatten %p-%p %s, $tn_count items", op, op_list,  get_OP_name(tn_type)
+    f_op_iter_get(op, tn_type, op_list)
+    op->left.n = n
     op->right.op = op_list
 
     subcode: iter
@@ -82,4 +75,21 @@ fncode: f_flatten_op_list(op, tn_type)
             BLOCK
             op_tmp=op_tmp->left.op
 
+# depth-first iteration
+fncode: f_op_iter_count(op, tn_type)
+    $return_type int
+    $if op->type != tn_type
+        return 1
+    $else
+        n1 = f_op_iter_count(op->left.op,tn_type)
+        n2 = f_op_iter_count(op->right.op,tn_type)
+        return n1+n2
 
+fncode: f_op_iter_get(op, tn_type, op_list)
+    $return_type struct OP*
+    $if op->type != tn_type
+        *op_list = *op
+        return op_list+1
+    $else
+        op_next = f_op_iter_get(op->left.op, tn_type, op_list)
+        return f_op_iter_get(op->right.op, tn_type, op_next)

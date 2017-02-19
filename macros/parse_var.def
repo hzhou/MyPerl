@@ -170,7 +170,7 @@ subcode: check_reduce_var_index
             $(type:2)=T_ATOM
             $(v:2).op=op_v
             i_top-=1
-        $call op_list, op_v, tn_type, $(v:1).op, op_index
+        op_v = f_new_op(tn_type,$(v:1).op,op_index)
         $(v:1).op=op_v
         cur.type=0
         break

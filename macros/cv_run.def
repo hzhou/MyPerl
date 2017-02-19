@@ -20,7 +20,7 @@ fncode: run_cv(cv)
     g_local.$grow cv->n_vars
 
     $call @debug_run_cv_enter
-    sv_ret = eval_op(cv->op_block, 0, 0)
+    $call run_cv_block
     $call @debug_run_cv_leave
 
     $for i=i_0:$(n)
@@ -43,3 +43,104 @@ fncode: run_cv(cv)
             memcpy(g_local+i_0, sv_save, n*$(sv_size))
             $(n) = i_n
             free(sv_save)
+
+    subcode: run_cv_block
+        op_block = cv->op_block
+        $if op_block->type==OP_block
+            # label, goto, break, continue  only supported in OP_block
+            $call do_cv_op_block
+        $else # OP_CV, OP_IF
+            sv_ret = eval_op(cv->op_block, 0, 0)
+
+#- goto, and op_block ----------------------- 
+subcode:: define_ops
+    $map define_op, block, goto, break
+
+macros:
+    SV_UNION:: struct GOTO G
+
+subcode:: define_sv_types
+    $struct(GOTO) cv, i
+
+    $map define_sv_type, goto
+    $define(GOTO_break) -1
+    $define(GOTO_next) -2
+    $define(GOTO_redo) -3
+
+subcode: sv_set_goto(sv, cv, i)
+    $(sv)->type = SVt_goto
+    $(sv)->value.G.cv = $(cv)
+    $(sv)->value.G.i = $(i)
+
+subcode:: eval_op_cases
+    case OP_goto:
+        sv = get_svreg()
+        $call sv_set_goto, sv, op->left.cv, op->right.n
+        return sv
+
+subcode: do_cv_op_block
+    n = op_block->left.n
+    op_list = op_block->right.op
+    i=0
+    $while 1
+        $(set:op=op_list[i])
+        sv_ret=eval_op(&$(op), 0, 0)
+        $call @check_ret_goto
+        i++
+        $if i<n
+            $call ret_svreg, sv_ret
+        $else
+            break
+
+    subcode: check_ret_goto
+        $if sv_ret->type==SVt_goto
+            $(set:i=sv_ret->value.G.i)
+            $(set:b=sv_ret->value.G.cv)
+            $if $(i)>0
+                # goto
+                $call check_goto
+            $else
+                # last, next, redo
+                $if $(op).type == OP_CV
+                    $call check_cv_break
+                $else
+                    $call check_block_break
+
+        subcode: check_goto
+            $if !$(b) || $(b) == cv
+                # in-block goto
+                i=$(i)
+            $else
+                break
+
+        subcode: check_block_break
+            # parent handle it
+            break
+
+        subcode: check_cv_break
+            $if $(b) == cv
+                # parent handle it
+                break
+            $elif cv->flag == CVf_loop
+                $if $(i) == GOTO_break
+                    $call ret_svreg, sv_ret
+                    sv_ret = NULL
+                    break
+                $elif $(i) == GOTO_next
+                    $call ret_svreg, sv_ret
+                    sv_ret = NULL
+                    i+=1
+                    continue
+                $elif $(i) == GOTO_redo
+                    # goto condition
+                    i-=1
+                    continue
+            $else
+                # Bare block
+                $if $(i) == GOTO_break ||$(i) == GOTO_next
+                    $call ret_svreg, sv_ret
+                    sv_ret = NULL
+                    break
+                $elif $(i) == GOTO_redo
+                    # redo the block
+                    continue

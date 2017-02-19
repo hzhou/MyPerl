@@ -4,8 +4,9 @@ subcode:: define_ops
 
 #-- ref: macrose/parse_var.def
 
-subcode:: eval_ops
-    $elif $(opT:MY) || $(opT:LOCAL)
+subcode:: eval_op_cases
+    case OP_MY:
+    case OP_LOCAL:
         i_var = (int)op->right.n
         sv_var = &g_local[i_var]
         # $print "var: %p", sv_var
@@ -13,7 +14,8 @@ subcode:: eval_ops
             memset(sv_var, 0, $(sv_size))
             $call init_sv_var
         return sv_var
-    $elif $(opT:OUR) || $(opT:GLOBAL)
+    case OP_OUR:
+    case OP_GLOBAL:
         i_var = (int)op->right.n
         sv_var = &g_global[i_var]
         # $print "var: %p", sv_var
@@ -31,8 +33,8 @@ subcode:: eval_ops
             SV_set_p(sv_var, hv, SVt_hv)
 
 #---- Index (ARRAY/HASH) ----------------
-subcode:: eval_ops
-    $elif $(opT:HASH_INDEX)
+subcode:: eval_op_cases
+    case OP_HASH_INDEX:
         sv_a = eval_op($(L), $(CTX))
         $if sv_a->type==SVt_hv
             hv = $(sv_hv:sv_a)
@@ -47,7 +49,7 @@ subcode:: eval_ops
                 HV_set(hv, $(s), $(n), sv)
         $map ret_svreg, sv_a, sv_b, sv_key
         return sv
-    $elif $(opT:ARRAY_INDEX)
+    case OP_ARRAY_INDEX:
         sv_a = eval_op($(L), $(CTX))
         $if sv_a->type==SVt_av
             av = $(sv_av:sv_a)
@@ -63,8 +65,8 @@ subcode:: eval_ops
         return sv
     
 #---- Assignment ------------------------- 
-subcode:: eval_ops
-    $elif $(opT:ASSIGN)
+subcode:: eval_op_cases
+    case OP_ASSIGN:
         sv_var = eval_op($(L), $(CTX_LEFT))
         sv_b = eval_op($(R), $(CTX))
         return do_assign(op->type, sv_var, sv_b)

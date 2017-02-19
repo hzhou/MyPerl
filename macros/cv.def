@@ -1,6 +1,10 @@
 subcode: _autoload
     $struct(CV) stash, i_start, n_vars, op_block
+    $struct(CV) int flag
     $register_prefix(cv) struct CV*
+
+    $define(CVf_switch) 1
+    $define(CVf_loop) 2
 
     $global darray lex_stack: struct CV*
     # compile time only need track size
