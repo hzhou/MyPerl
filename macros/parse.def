@@ -11,8 +11,9 @@ include: macros/parse_char.def
 include: macros/parse_keyword.def
 include: macros/parse_number.def
 include: macros/parse_string.def
-
 include: macros/parse_var.def
+include: macros/parse_bareword.def
+
 # include: macros/parse_old.def
 
 subcode: _autoload
@@ -57,8 +58,6 @@ fncode: perl_parse(s_in, file_in)
         $(set:op_boc=stack[i_top-2].value.n)
         $(set:block=stack[i_top-1].value.op)
         $call @debug_reduce_eoc
-        $if $(block)->type == OP_SEQ
-            f_flatten_op_list($(block), OP_SEQ)
         $if $(op_eoc)==0
             $call reduce_eof
         $else
@@ -103,11 +102,13 @@ subcode: match
         n = (int)(s-s2)
         tn_word = my_word(s2, n)
         $if !tn_word
-            sv=get_sv()
-            SV_copy_s(sv, s2, n)
-            $call set_atom, OP_CONST, sv
+            s = f_skip_simple_spaces(s)
+            $call @parse_bareword
+            $call error, "bareword"
         $else
+            # first, operator and built-in functions
             $call @parse_keyword_cases
+            # next,  statement keywords
             $call @parse_keyword_other
             $else
                 $call error, "unsupported keyword $s2"

@@ -24,7 +24,7 @@ subcode: define_op_precedence
     $map op, pre, ++, --
     # $map op, post, ++, --
     $map op, left, ->
-    $map op, pre, SIGIL, MY
+    $map op, pre, UNARY, SIGIL, MY
     
     # simple syntactic aliases
     $define(T_EqGt) T_Comma

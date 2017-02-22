@@ -18,7 +18,7 @@ subcode: _autoload
     $(block:main_init)
         $global sv_TRUE, sv_FALSE
         $(for:TRUE,FALSE)
-            sv_$1 = get_sv()
+            sv_$1 = get_sv(0)
             sv_$1->refcnt = -1
         $call sv_set_n, sv_TRUE, 1
         $call sv_set_n, sv_FALSE, 0

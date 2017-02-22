@@ -5,7 +5,7 @@ subcode: match_v_string
             s2++
         $if !isword(*s2)
             cur.type=T_ATOM
-            sv = get_sv()
+            sv = get_sv(SVt_string)
             s=f_get_v_string(s+1, sv)
             break
 

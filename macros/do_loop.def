@@ -20,11 +20,18 @@ subcode:: reduce_statement_cv2
 
 subcode:: reduce_statement_cv2
     $case $(T)==OP_for
-        $call @assert, $(op1)->type==OP_SEQ
-        $call @assert, $(op1)->left.op->type==OP_SEQ
-        $(set:init=$(op1)->left.op->left.op)
-        $(set:cond=$(op1)->left.op->right.op)
-        $(set:cont=$(op1)->right.op)
+        $if $(op1)->type==OP_SEQ
+            f_flatten_op_list($(op1), OP_SEQ)
+            $if $(op1)->left.n!=3
+                $call error, "for condition"
+            op_init = $(op1)->right.op
+            op_cond = op_init+1
+            op_cont = op_init+2
+        $else
+            $call error, "for cond"
+        $(set:init=op_init)
+        $(set:cond=op_cond)
+        $(set:cont=op_cont)
         $call reduce_loop_cv2
 
 subcode:: reduce_statement_cv2
@@ -49,6 +56,7 @@ subcode:: reduce_statement_cv2
         subcode: new_op_loop_cond(N)
             $call new_op, op_break, OP_goto, $(N)
             op_cond=f_new_op(OP_IF_NO,$(cond),op_break)
+
     subcode: wrap_scope
         $call cv_close, op
         $call new_op, op_cv, OP_CV, $(cv)

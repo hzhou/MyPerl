@@ -10,7 +10,7 @@ include: macros/cv.def
 include: macros/cv_run.def
 include: macros/registers.def
 include: macros/heap.def
-
+include: macros/global.def
 include: macros/parse.def
 include: macros/eval_op.def
 
@@ -18,6 +18,7 @@ include: macros/do_convert.def
 include: macros/do_bin_ops.def
 include: macros/do_print.def
 include: macros/do_variables.def
+include: macros/do_sub.def
 include: macros/do_switch.def
 include: macros/do_loop.def
 
@@ -36,7 +37,7 @@ page: myperl, basic_frame
     cv_main = perl_parse(NULL, file_in)
 
     $call run_init
-    run_cv(cv_main)
+    run_cv(cv_main, 0, 0)
 
 fncode: croak(s_msg)
     fprintf(stderr, "%s\n", s_msg)

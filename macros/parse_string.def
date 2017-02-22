@@ -1,24 +1,24 @@
 subcode:: parse_match_cases
     $elif *s=~['"]
-        sv = get_sv()
+        $my sv
         $if *s=='\''
-            s = f_get_str_q(s, sv)
+            s = f_get_str_q(s, &sv)
         $else
-            s = f_get_str_qq(s, sv)
+            s = f_get_str_qq(s, &sv)
         $if s==NULL
             $call error, "unterminated string"
         $call set_atom, OP_CONST, sv
         break
 
 #----------------------------------------------- 
-fncode: f_get_str_q(s, sv)
+fncode: f_get_str_q(s, struct SV ** p_sv)
     $local s2, n
     s = f_scan_delim(s, &s2, &n)
     $if s
-        SV_copy_s(sv, s2, n)
+        *p_sv = sv_from_s(s2, n)
     return s
 
-fncode: f_get_str_qq(s, sv)
+fncode: f_get_str_qq(s, struct SV ** p_sv)
     $local s2, n
     s = f_scan_delim(s, &s2, &n)
     $if s
@@ -26,7 +26,7 @@ fncode: f_get_str_qq(s, sv)
         $call parse_string
         $if tb_simple
             n = ts_1-s2
-            SV_copy_s(sv, s2, n)
+            *p_sv = sv_from_s(s2, n)
         $else
             $print "Unsupported string const!"
     return s

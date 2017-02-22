@@ -1,7 +1,7 @@
 subcode:: parse_match_cases
     $elif isdigit(*s)
         $local sv
-        sv = get_sv()
+        sv = get_sv(0)
         s = f_get_number(s, sv)
         $call set_atom, OP_CONST, sv
         break

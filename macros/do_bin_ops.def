@@ -102,17 +102,19 @@ subcode: do_bin_string
 
 subcode: do_opeq_string
     SV_to_string(sv_a)
-    $if $(opT:$(sym:.))
+    $if $(opT:$(sym:.=))
         SV_append_sv(sv_a, sv_b)
-    $elif $(opT:x)
-        n = do_int(sv_b)
-        &call with_sv_string, sv_a
-            n1 = $(n)
-            n2 = n1 * n
-            SV_resize(sv_a, n2)
-            $for i=1:n
-                memcpy($(s)+n1*i, $(s), n1)
-            $(n) = n2
+    # $call do_xEq
+    subcode: do_xEq
+        $elif $(opT:x=)
+            n = do_int(sv_b)
+            &call with_sv_string, sv_a
+                n1 = $(n)
+                n2 = n1 * n
+                SV_resize(sv_a, n2)
+                $for i=1:n
+                    memcpy($(s)+n1*i, $(s), n1)
+                $(n) = n2
 
 #-----------------
 subcode: do_bin_num
@@ -123,8 +125,9 @@ subcode: do_bin_num
         $(for:o in +,-,*,/)
             $case $(opT:$(sym:$(o)))
                 f1 $(o)= f2
-        $elif $(opT:$(sym:**))
-            f1 = pow(f1, f2)
+        $(if:!is_opeq)
+            $elif $(opT:$(sym:**))
+                f1 = pow(f1, f2)
         $call _sv_set, f
     # int 
     $if 1
@@ -149,6 +152,7 @@ subcode: do_bin_num
         
 subcode: do_opeq_num
     $(set:is_opeq=1)
+    $(set:opT=op->type==OP_$1Eq)
     $call do_bin_num
 
 #----------------------------------------------- 

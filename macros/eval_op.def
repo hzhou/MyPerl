@@ -28,7 +28,7 @@ fncode: eval_op
             eval_op($(L), 0, tn_level)
             return eval_op($(R), 0, tn_level)
         case OP_CV:
-            return run_cv(op->right.cv)
+            return run_cv(op->right.cv, $(CTX))
         case OP_CONST:
             return op->right.sv
         case OP_LIST:
@@ -55,8 +55,9 @@ fncode: eval_list
         $if $(sv_is_reg:sv_a) && sv_a->type==SVt_av
             sv = sv_a
             av = $(sv_av:sv)
-        $elif op_a
+        $else
             $call get_av_reg, sv, av
+            # $print "new sv av: %p - %p", sv, av
             $call av_push, av, sv_a
             $call ret_svreg, sv_a
 
@@ -67,6 +68,7 @@ fncode: eval_list
     subcode: av_push(av_list, sv_item)
         $if $(sv_item)->type==SVt_av
             av_item = $(sv_av:$(sv_item))
+            $call assert, av_item!=av
             &call av_each, av_item
                 AV_push($(av_list), $(sv))
         $else

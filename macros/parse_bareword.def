@@ -1,0 +1,25 @@
+subcode:: parse_bareword
+    $case *s==':'
+        $if $(type:1)==T_BOC || $(type:1)==T_Semi
+            $if s2+n<s
+                s2[n]=':'
+            s++
+            n++
+            $call add_label, s2, n, i_seq
+            goto lexer
+
+    # ref: parse_var.def
+    subcode: add_label(name, len, i)
+        stash_local.$set $(name), $(len), i_seq
+
+subcode:: parse_bareword
+    $case s=~/=>/
+        $call bareword_to_string
+        break
+    $case *s=='}' && $(type:1)==T_BOC
+        $call bareword_to_string
+        break
+
+    subcode: bareword_to_string
+        sv = sv_from_s(s2, n)
+        $call set_atom, OP_CONST, sv

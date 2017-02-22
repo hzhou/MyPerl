@@ -109,6 +109,7 @@ fncode: do_printf(sv_io, av)
         subcode: do_fmt
             sv = AV_get(av, i_arg++)
             sv=SV_fmt(sv, *s, 0, 0, 0)
+            $call sv_string_terminate, sv
             fputs(sv->value.S.s, file_out)
 
 include: c/string_fmt.def
@@ -116,11 +117,10 @@ include: c/string_fmt.def
 fncode: SV_fmt(sv, char_fmt, n_width, n_prec, n_flag)
     $return_type struct SV*
     $if !sv
-        sv=get_sv()
         $if char_fmt=='s'
-            SV_copy_s(sv, "(null)", 0)
+            sv = sv_from_s("", 0)
         $else
-            $call sv_set_n, sv, 0
+            sv=get_sv(SVt_int)
 
     $if char_fmt == 's' && sv->type!=SVt_string
         SV_to_string(sv)

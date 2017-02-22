@@ -1,5 +1,5 @@
 subcode: _autoload
-    $struct(CV) stash, i_start, n_vars, op_block
+    $struct(CV) stash, i_start, n_vars, n_seq, op_block
     $struct(CV) int flag
     $register_prefix(cv) struct CV*
 
@@ -8,7 +8,8 @@ subcode: _autoload
 
     $global darray lex_stack: struct CV*
     # compile time only need track size
-    $global i_local=0, i_global=0
+    $global cv_cur=NULL
+    $global i_local=0, i_global=0, i_seq=0
 
 fncode: CV_new
     $local cv
@@ -16,25 +17,44 @@ fncode: CV_new
     return cv
 
 #---- compile time parse_reduce ----------- 
-subcode: cv_begin
-    $call @debug_cv_begin
-    cv = CV_new()
-    cv->i_start = i_local
-    cv->stash   = stash_local
+subcode: cv_cur_wrap
+    $(set:cv=cv_cur->$1)
+    $(cv:n_vars) = i_local - $(cv:i_start)
+    $(cv:n_seq)  = i_seq
 
-    lex_stack.$push cv
-    stash_local = stash_new()
+subcode: cv_begin
+    $if cv_cur
+        $call cv_cur_wrap
+    lex_stack.$push cv_cur
+
+    cv_cur = CV_new()
+    cv_cur->stash = stash_new()
+    cv_cur->i_start = i_local
+    $print cv_begin: i_local = $i_local, [$lex_stack_len]
+
+    $call @debug_cv_begin
+    i_seq = 0
+    stash_local = cv_cur->stash
 
     $if !stash_global
         stash_global = stash_local
 
 subcode: cv_close(op_block)
-    cv = lex_stack.$pop
-    cv->n_vars   = i_local-cv->i_start
-    cv->op_block = $(op_block)
+    $if $(op_block)->type == OP_SEQ
+        f_flatten_op_list($(op_block), OP_SEQ)
+        $(op_block)->type=OP_block
 
-    i_local = cv->i_start
-    stash_local = cv->stash
+    cv_cur->op_block = $(op_block)
+    $call cv_cur_wrap
+
+    cv = cv_cur
+
+    cv_cur = lex_stack.$pop
+    $if cv_cur
+        i_local = cv_cur->i_start + cv_cur->n_vars
+        i_seq   = cv_cur->n_seq
+        stash_local = cv_cur->stash
+
     $call @debug_cv_close
     $(export:cv=cv)
 

@@ -16,6 +16,7 @@ subcode: _autoload
     $struct(CV) char debug
 
 subcode: debug_cv_begin
+    cv_cur->debug = n_debug
     $if n_debug
         $print >>>> cv begin ----
         $dump i_local
@@ -23,8 +24,8 @@ subcode: debug_cv_begin
 subcode: debug_cv_close
     $if n_debug
         $call debug_dump
-        cv->debug = n_debug
-        n_debug = 0
+    $if cv_cur
+        n_debug = cv_cur->debug
 
     subcode: debug_dump
         $print <<<< cv close ----
@@ -33,12 +34,13 @@ subcode: debug_cv_close
 #-- runtime ----------
 subcode: debug_run_cv_enter
     $if $(cv)->debug
+        n_debug_save = n_debug
         n_debug = $(cv)->debug
         $print "---- enter_scope: 0 global vars, %d local vars ", $(cv)->n_vars
 
 subcode: debug_run_cv_leave
     $if $(cv)->debug
-        n_debug = 0
+        n_debug = n_debug_save
         $print "---- leave_scope"
 
 #----------------------------------------------- 
@@ -48,7 +50,7 @@ subcode: print_reduce_level
 subcode: debug_reduce_binary
     $if n_debug
         $call print_reduce_level
-        $print reduce_binary: $(type)
+        $print "reduce_binary: $(type) -> %s, %s", get_OP_name($(term1)->type), get_OP_name($(term2)->type)
 
 subcode: debug_reduce_unary
     $if n_debug
@@ -59,6 +61,9 @@ subcode: debug_reduce_eoc
     $if n_debug
         $call print_reduce_level
         $print "reduce_eoc %c - %c", $(op_boc), $(op_eoc)
+        $if $(block)->left.op
+            $print " %p [block: %s -> %s, %s]", $(block), get_OP_name($(block)->type), get_OP_name($(block)->left.op->type), get_OP_name($(block)->right.op->type)
+
 #----------------------------------------------- 
 subcode: debug_eval_op
     $if n_debug
@@ -69,6 +74,13 @@ subcode: debug_eval_op
 subcode: debug_eval_bin_op
     $if !sv
         $call die, "unhandled bin op"
+
+subcode: debug_cv_run_op_block
+    $if cv->debug
+        $print "cv_run %s [$i/$n]", cv->flag==CVf_loop?"loop":"block"
+        $if n_svreg!=0
+            $print "    reg: $n_svreg"
+
 #----------------------------------------------- 
 subcode: debug_find_var(s)
     $if n_debug

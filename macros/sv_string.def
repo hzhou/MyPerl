@@ -36,11 +36,19 @@ subcode:: sv_ref_release
                 free($(s))
 
 #----------------------------------------------- 
-fncode: SV_copy_s(sv, s, n)
-    $local s2
-    $allocate(n+1) s2
-    memcpy(s2, s, n)
-    $call sv_set_s, sv, s2, n, n+1
+fncode: sv_from_s(s, n)
+    $if n==0
+        n=strlen(s)
+
+    sv = get_sv(SVt_string)
+    SV_resize(sv, n)
+    &call with_sv_string, sv
+        memcpy($(s), s, n)
+        $(n) = n
+    return sv
+
+subcode: sv_string_terminate(sv)
+    $(sv)->value.S.s[$(sv)->value.S.n]='\0'
 
 #---- string functions -------------------------- 
 fncode: SV_resize(sv, n)
@@ -48,6 +56,8 @@ fncode: SV_resize(sv, n)
     $(set:S=sv->value.S)
     $if n==0
         n=$(S).size*5/3+20
+    $else
+        n+=1 # so it always can be zero terminated
 
     $if n>$(S).size
         $(S).s = realloc($(S).s, n)

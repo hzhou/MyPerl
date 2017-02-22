@@ -45,7 +45,7 @@ subcode:: eval_op_cases
         &call if_sv_string, sv_key
             sv = HV_get(hv, $(s), $(n))
             $if sv==NULL && $(IS_LEFT)
-                sv  = get_sv()
+                sv  = get_sv(0)
                 HV_set(hv, $(s), $(n), sv)
         $map ret_svreg, sv_a, sv_b, sv_key
         return sv
@@ -59,7 +59,7 @@ subcode:: eval_op_cases
         i = do_int(sv_b)
         sv = AV_get(av, i)
         $if sv==NULL && $(IS_LEFT)
-            sv = get_sv()
+            sv = get_sv(0)
             AV_set(av, i, sv)
         $map ret_svreg, sv_a, sv_b
         return sv
@@ -85,6 +85,7 @@ fncode: do_assign(tn_op, sv_var, sv_val)
             $call die, "Error\n"
 
     memcpy(sv_var, sv_val, $(sv_size))
+    sv_var->flag = 0
     $if $(sv_is_reg:sv_val)
         # simply grab
         sv_val->flag=0

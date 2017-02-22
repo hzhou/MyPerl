@@ -53,9 +53,17 @@ subcode:: reduce_binary
             op=f_new_op($(type),$(term1),$(term2))
             break
 
+#----------------------------------------------- 
 subcode:: resolve_op_op
     $case $(type:1)==T_Semi
         # cur.type must be T_EOC
         i_top--
         continue
         
+subcode:: resolve_op_op
+    $case cur.type==T_EOC && $(type:1)==T_BOC
+        cur.type = T_ATOM
+        cur.value.op = NULL
+        i_top-=1
+        break
+

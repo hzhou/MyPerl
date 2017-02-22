@@ -9,9 +9,11 @@ macros:
 fncode: AV_new
     $local av
     $allocate(1,0) av
+    # $print "AV_new: %p", av
     return av
 
 fncode: AV_free(av)
+    # $print "AV_free: %p", av
     $call @debug_AV_free
     $if av->p_array
         $for i=av->i_0:av->i_n

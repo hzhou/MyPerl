@@ -1,0 +1,69 @@
+macros:
+    KEY_OTHER:: sub
+
+subcode:: define_ops
+    $call define_op, SUB
+
+subcode:: parse_keyword_other
+    $elif tn_word == WORD_sub
+        $call new_op, op, OP_SUB, 0
+        $call set_cur, T_BOS, op
+
+subcode:: parse_bareword
+    $case $(type:1)==T_BOS && $(value:1).op->type==OP_SUB
+        $call bareword_subname
+        $(value:1).op->left.sv = sv
+        goto lexer
+
+subcode:: reduce_statement_cv1
+    $case $(T) == OP_SUB
+        sv_name = $(value:1).op->left.sv
+        &call with_sv_string, sv_name
+            $call add_sub, $(s), $(n), $(cv)
+        i_top -= 1
+        goto lexer
+
+# -----
+subcode: _autoload
+    $global darray subs: struct CV*
+
+subcode: add_sub(name, len, cv)
+    stash_global.$set $(name), $(len), subs_len
+    subs.$push $(cv)
+    printf("add sub %.*s -- %d\n", $(len),$(name),subs_len-1)
+
+#----------------------------------------------- 
+subcode:: define_ops
+    $call define_op, Fcall
+
+subcode:: parse_bareword
+    $case *s=='('
+        $call bareword_subname
+        $call new_op2, op, OP_Fcall, sv, 0
+        cur.type=T_UNARY
+        cur.value.op = op
+        break
+
+    subcode: bareword_subname
+        sv = get_sv(SVt_string)
+        SV_append_s(sv, "&", 1)
+        SV_append_s(sv, s2, n)
+
+subcode:: reduce_prefix_cases
+    case T_UNARY:
+        op = $(op_op)
+        op->right.op = $(term)
+        break
+
+#----------------------------------------------- 
+subcode:: eval_op_cases
+    case OP_Fcall:
+        sv_name = op->left.sv
+        &call with_sv_string, sv_name
+            $(s)[$(n)]='\0'
+            i_sub = find_global($(s))
+            printf("Calling %.*s -- %d \n", $(n), $(s), i_sub)
+        $if i_sub>=0
+            cv = subs[i_sub]
+            return run_cv(cv, $(CTX))
+        return NULL

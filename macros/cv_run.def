@@ -9,21 +9,24 @@ subcode: run_init
     $global darray g_global: struct SV
     g_global.$grow i_global
 
-fncode: run_cv(cv)
+fncode: run_cv
+    $parameter cv, $(PARAM_CTX)
     $(set:cv=cv)
-    $(set:n=g_local_len)
     i_0 = cv->i_start
-    i_n = $(n)
-    n = $(n) - i_0
+    i_n = g_local_len
+    n = i_n - i_0
 
     $call local_save
-    g_local.$grow cv->n_vars
+    $if cv->n_vars>0
+        g_local.$grow cv->n_vars
+        g_local_len+=cv->n_vars
+        $print "g_local grow by %d -> %d", cv->n_vars, g_local_len
 
     $call @debug_run_cv_enter
     $call run_cv_block
     $call @debug_run_cv_leave
 
-    $for i=i_0:$(n)
+    $for i=i_0:g_local_len
         SV_refdec(&g_local[i])
 
     $call local_restore
@@ -32,16 +35,17 @@ fncode: run_cv(cv)
     subcode: local_save
         $my sv_save
         $if n>0
+            $print local_save: $n
             $allocate(n) sv_save
             memcpy(sv_save, g_local+i_0, n*$(sv_size))
-            $(n) = i_0
+            g_local_len = i_0
         $else
             sv_save=NULL
         
     subcode: local_restore
         $if sv_save
             memcpy(g_local+i_0, sv_save, n*$(sv_size))
-            $(n) = i_n
+            g_local_len = i_n
             free(sv_save)
 
     subcode: run_cv_block
@@ -50,7 +54,7 @@ fncode: run_cv(cv)
             # label, goto, break, continue  only supported in OP_block
             $call do_cv_op_block
         $else # OP_CV, OP_IF
-            sv_ret = eval_op(cv->op_block, 0, 0)
+            sv_ret = eval_op(cv->op_block, $(CTX))
 
 #- goto, and op_block ----------------------- 
 subcode:: define_ops
@@ -84,8 +88,10 @@ subcode: do_cv_op_block
     i=0
     $while 1
         $(set:op=op_list[i])
+        $call @debug_cv_run_op_block
         sv_ret=eval_op(&$(op), 0, 0)
-        $call @check_ret_goto
+        $if sv_ret
+            $call @check_ret_goto
         i++
         $if i<n
             $call ret_svreg, sv_ret
@@ -110,8 +116,12 @@ subcode: do_cv_op_block
             $if !$(b) || $(b) == cv
                 # in-block goto
                 i=$(i)
-            $else
-                break
+                $if i<n
+                    $call ret_svreg, sv_ret
+                    continue
+            $call ret_svreg, sv_ret
+            sv_ret = NULL
+            break
 
         subcode: check_block_break
             # parent handle it
