@@ -1,0 +1,64 @@
+macros:
+    N_COPIES: 100
+
+subcode: _autoload
+    $global unsigned svcopy[$(N_COPIES)], i_svcopy=1, n_svcopy=1
+    # make 0th unavailable
+    $(block:main_init)
+        svcopy[0]=1
+
+fncode: get_copy
+    $if n_svcopy>=$(N_COPIES)
+        $call die, "Out of COPY counters!"
+
+    $while svcopy[i_svcopy]
+        $call inc_i_svcopy
+
+    svcopy[i_svcopy]=2 # at least two
+    n_svcopy++
+    return i_svcopy
+
+    subcode: inc_i_svcopy
+        # to optimize, use power of 2 and bit mask
+        i_svcopy=(i_svcopy+1)%$(N_COPIES)
+
+subcode: ret_copy(i)
+    svcopy[$(i)]--
+    $if svcopy[$(i)]==0
+        n_svcopy--
+        BLOCK
+
+subcode: sv_on_write(sv)
+    $if $(sv)->copy
+        &call ret_copy, $(sv)->copy
+            # sole owner, go ahead
+            NOOP
+        $else
+            $(sv)->copy = 0
+            BLOCK
+
+# -------------------------
+fncode: SV_copy(sv_ret, sv)
+    $if !sv_ret
+        sv_ret = get_svreg(sv->type)
+    $else
+        sv_ret->type=sv->type
+
+    $if sv->type > SVt_BASIC && sv->value.p
+        $if !sv->copy
+            sv_ret->copy = sv->copy = get_copy()
+        $else
+            sv_ret->copy = sv->copy
+    memcpy(&sv_ret->value, &sv->value, sizeof(sv->value))
+    return sv_ret
+
+#----------------------------------------------- 
+#- ref: SV_refdec
+subcode: sv_decopy
+    $if sv->copy
+        tn_done = 1
+        &call ret_copy, sv->copy
+            # last copy, need deallocate
+            tn_done=0
+        $if tn_done
+            return

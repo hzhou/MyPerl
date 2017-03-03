@@ -1,0 +1,81 @@
+macros:
+    NUM_UNIVERSALS: 100
+
+subcode:: perl_init
+    $call @basic_constants
+    g_global.$grow $(NUM_UNIVERSALS)
+    g_global_len = 1 # starts at 1 (so i_var>0)
+    $register_prefix(I) int
+    $call @universal_vars
+
+subcode:: basic_constants
+    $global sv_TRUE, sv_FALSE
+    $(for:TRUE,FALSE)
+        sv_$1 = get_sv(0)
+        sv_$1->refcnt = -1
+    $call sv_set_n, sv_TRUE, 1
+    $call sv_set_n, sv_FALSE, 0
+
+    $global sv_EMPTY
+    sv_EMPTY = sv_from_s("", 0)
+    sv_EMPTY->refcnt = -1
+
+#----------------------------------------------- 
+subcode:: universal_vars
+    subcode: add_universal(name)
+        $(setmacro:_i_universal+=1)
+        $(if:_i_universal>$(NUM_UNIVERSALS))
+            $warn add_universal exceeds maximum
+
+        $(set:sigil=$(name:0:1))
+        $(set:id=$(name:1:))
+        $(if:sigil=$)
+            $(set:i_var=I_$(id))
+        $(elif:sigil=@)
+            $(set:i_var=I_at_$(id))
+        $(elif:sigil=%)
+            $(set:i_var=I_hash_$(id))
+        $(elif:sigil=*)
+            $(set:i_var=I_$(id))
+
+        $global $(i_var)
+        $(i_var) = g_global_len++
+        sv = &g_global[$(i_var)]
+
+        $(set:n=$(name:strlen))
+        stash_global.$set "$(name)", $(n), $(i_var)
+
+        $(if:sigil=@)
+            av = AV_new()
+            sv->type=SVt_av
+            sv->value.p=av
+        $(elif:sigil=%)
+            hv = HV_new()
+            sv->type=SVt_hv
+            sv->value.p=hv
+        $(elif:sigil=*)
+            sv->type=SVt_io
+        $(else)
+            sv->type = SVt_undef
+
+    subcode: _set_s(s)
+        # really should enforce readonly
+        sv->type=SVt_string
+        $(set:S=sv->value.S)
+        $(S).s = $(s)
+        $(S).n = strlen($(s))
+        $(S).size = 0
+
+    subcode: _set_io(io)
+        sv->type=SVt_io
+        sv->value.p = $(io)
+
+    subcode: av_add_s(s)
+        sv = sv_from_s($(s), 0)
+        AV_push(av, sv)
+
+#---- misc universals ----------------------------------- 
+subcode:: universal_vars
+    $call add_universal, $LIST_SEPARATOR # $"
+    $call _set_s, " "
+

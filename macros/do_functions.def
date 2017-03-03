@@ -1,0 +1,71 @@
+macros:
+    KEY_FN_1:: uc, lc, ucfirst, lcfirst, quotemeta
+
+# built-in functions
+subcode:: eval_op_cases
+    case OP_UNARY:
+        tn_word = op->left.n
+        $if tn_word<WORD_FN_LIST
+            sv_right = eval_list(NULL, $(R), $(CTX_LIST))
+            av = $(sv_av:sv_right)
+        $else
+            sv_right = eval_op($(R), $(CTX_SCALAR))
+        sv_ret = NULL
+        switch(tn_word){
+            $(set:WORD=tn_word==WORD_$1)
+            $call @eval_fn_cases
+            default:
+                $call die, "unsupported UNARY op [%s]", get_WORD_name(tn_word)
+        }
+        $call ret_svreg, sv_right
+        return sv_ret
+
+subcode:: eval_fn_cases
+    case WORD_lc:
+        &call unary_string_op
+            $for i=0:$(n)
+                $call lc, s[i]
+    case WORD_uc:
+        &call unary_string_op
+            $for i=0:$(n)
+                $call uc, s[i]
+    case WORD_lcfirst:
+        &call unary_string_op
+            $if $(n)>0
+                $call lc, s[0]
+    case WORD_ucfirst:
+        &call unary_string_op
+            $if $(n)>0
+                $call uc, s[0]
+    case WORD_quotemeta:
+        &call unary_string_op
+            tn_size = $(n)*2
+            $allocate(tn_size) s2
+            $my char* d
+            d=s2
+            $for i=0:$(n)
+                $if !isword(s[i])
+                    *d++ = '\\'
+                *d++ = s[i]
+            free($(s))
+            $(n) = (int)(d-s2)
+            $(size) = tn_size
+    # -----------------------
+    subcode: unary_string_op
+        sv_ret = do_string(sv_right)
+        $if sv_ret
+            &call with_sv_string, sv_ret
+                s = $(s)
+                BLOCK
+        break
+
+        subcode: lc(c)
+            $if $(c)>='A' && $(c)<='Z'
+                $(c) |= 0x60
+        subcode: uc(c)
+            $if $(c)>='a' && $(c)<='z'
+                $(c) &= 0x3f
+
+
+
+

@@ -1,0 +1,178 @@
+subcode:: define_ops
+    # OP_Re holds regex string, 
+    # OP_ReC holds compiled regex
+    $map define_op, Re, ReC, ReMatch, ReReplace
+
+#---- scanner ----------------------------------- 
+subcode:: parse_match_cases
+    $elif *s== '/' && $(is_op:$(type:1))
+        $my op_re
+        s = f_get_regex(s, &op_re)
+        $call new_op, op_var, OP_GLOBAL, I_ARG
+        $call new_op2, op, OP_ReMatch, op_var, op_re
+        $call set_cur, T_ATOM, op
+        goto do_shift
+
+#----------------------------------------------- 
+fncode: f_get_regex(s, struct OP ** p_op)
+    $local s2, n
+    s = f_scan_delim(s, &s2, &n)
+    $if s && p_op
+        s2[n]='\0'
+        op_str = f_parse_str_qq(s2, 1)
+        $call new_op, op_re, OP_Re, op_str
+        *p_op = op_re
+    return s
+
+#---- compile ----------------------------------- 
+subcode: _autoload
+    $include pcre
+    $uselib pcre
+    $register_name(Re) pcre*
+
+macros:
+    SV_TYPES:: SVt_regex
+
+subcode:: sv_ref_release_cases
+    $case $(T:regex)
+        pcre_free($(p))
+
+# ---------------------
+subcode:: eval_op_cases
+    case OP_ReMatch:
+        sv_ret = NULL
+        sv_a = eval_op($(L), $(CTX_SCALAR))
+        $if sv_a && sv_a->type==SVt_string && sv_a->value.S.n>0
+            $call regex_get_re
+            $call regex_match, sv_a
+        return sv_ret
+    case OP_ReC:
+        return op->right.sv
+    case OP_Re:
+        sv_pat = eval_op($(R), $(CTX_SCALAR))
+        $call assert, sv_pat->type == SVt_string
+        $call regex_compile #  sv_pat, sv_re
+
+        $if $(R)->type == OP_CONST
+            sv_re = get_sv(SVt_regex)
+            op->type = OP_ReC
+            op->right.sv = sv_re
+        $else
+            sv_re = get_svreg(SVt_regex)
+        sv_re->value.p = Re
+
+        $call ret_svreg, sv_pat
+        return sv_re
+
+    # ---------------------------
+    subcode: regex_compile
+        &call with_sv_string, sv_pat
+            $(s)[$(n)]='\0'
+            $my Re, const char* ts_err, tn_where
+            tn_option=0
+            Re = pcre_compile($(s), tn_option, &ts_err, &tn_where, NULL)
+        $if !Re
+            $call die, "Regex Pattern error: $ts_err"
+
+    subcode: regex_get_re
+        $if $(R)->type == OP_ReC
+            sv_pat = $(R)->right.sv
+        $elif $(R)->type == OP_Re
+            sv_pat = eval_op($(R), $(CTX_SCALAR))
+        $if sv_pat && sv_pat->value.p
+            Re = sv_pat->value.p
+        $else
+            $call die, "error: ReMatch"
+
+    subcode: regex_match(sv)
+        $call do_regex_match, Re, $(sv)
+        $if $(ret)
+            $if $(IS_LIST)
+                sv_ret = get_svreg(SVt_av)
+                av = AV_new()
+                $call sv_set_p, sv_ret, av, SVt_av
+                &call with_regex
+                    $for i=1:$(ret)
+                        sv = g_global+I_MATCH+i
+                        s = $(s)+$(o:i*2)
+                        n = $(o:i*2+1)-$(o:i*2)
+                        $call sv_set_s, sv, s, n, _
+                        AV_push(av, sv)
+            $else
+                sv_ret = get_svreg(SVt_int)
+                sv_ret->value.n = $(ret)
+        $else
+            sv_ret = NULL
+
+#----------------------------------------------- 
+#- $1, $2, ..., $&, $`, $'
+#-     note: they are volatile, use as syntax convenience
+
+subcode: _autoload
+    $global s_regex_str, n_regex_len, int regex_offs[30], n_regex_caps
+
+subcode: do_regex_match(re, sv)
+    &call with_sv_string, $(sv)
+        $(set:start=$(sv)->value.S.pos)
+        $(set:option=0)
+        s_regex_str = $(s)
+        n_regex_len = $(n)
+        n_regex_caps = pcre_exec($(re), NULL, s_regex_str, n_regex_len, $(start), $(option), regex_offs, 30)
+        $if n_regex_caps<0
+            # $call @debug_pcre
+            n_regex_caps=0
+        $elif n_regex_caps==0
+            n_regex_caps=10
+    $(export:ret=n_regex_caps)
+
+subcode: with_regex
+    $(set:s=s_regex_str)
+    $(set:n=n_regex_len)
+    $(set:o=regex_offs[$1])
+    BLOCK
+
+#- Need make them scope variable!
+subcode:: universal_vars
+    $call add_universal, $ARG # $_
+    $call add_universal, $PREMATCH # $&
+    $call add_universal, $POSTMATCH # $&
+    $call add_universal, $MATCH # $&
+    $(for:1-9)
+        $call add_universal, $$1
+
+subcode:: define_ops
+    $call define_op, VarMatch
+
+subcode:: eval_op_cases
+    case OP_VarMatch:
+        i = op->right.n
+        $if n_regex_caps==0 || i>=n_regex_caps
+            return NULL
+        &call with_regex
+            $if i==-1
+                sv_ret = &g_global[I_PREMATCH]
+                $call sv_set_s, sv_ret, $(s), $(o:0), _
+            $elif i==-2
+                sv_ret = &g_global[I_POSTMATCH]
+                s = $(s)+$(o:1)
+                n = $(n)-$(o:1)
+                $call sv_set_s, sv_ret, s, n, _
+            $else
+                sv_ret = g_global+I_MATCH+i
+                s = $(s)+$(o:i*2)
+                n = $(o:i*2+1)-$(o:i*2)
+                $call sv_set_s, sv_ret, s, n, _
+        return sv_ret
+
+subcode:: match_special_sv
+    $case s[0]=='&'
+        $call set_var_match, 0 
+    $case s[0]>='1' && s[0]<='9'
+        $call set_var_match, s[0]&0xf
+    $case s[0]=='`'
+        $call set_var_match, -1
+    $case s[0]=='\''
+        $call set_var_match, -2
+
+    subcode: set_var_match(i)
+        $call new_op, op, OP_VarMatch, $(i)

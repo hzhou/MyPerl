@@ -1,0 +1,44 @@
+subcode:: parse_match_cases
+    $elif isword(*s) || (s[0]==':' && s[1]==':')
+        # $call @match_v_string
+        $call scan_word, 1 # check package id 
+        $if !has_package && $(type:1)!=T_SIGIL
+            tn_word = my_word(s2, n)
+            $if tn_word
+                # first, operator and built-in functions
+                $call @parse_keyword_cases
+                # next,  statement keywords
+                $call @parse_keyword_other
+                $else
+                    $call error, "unsupported keyword $s2"
+                break
+
+        s = f_skip_simple_spaces(s)
+        $call gather_word_info
+        # variable, sub, hash key ...
+        $call @parse_bareword
+        $call error, "bareword $s2 [$tn_unary_word]"
+        break
+    # -------------------------------
+    subcode: scan_word(check_package)
+        s2 = s
+        s = f_scan_word(s)
+        $(if:check_package=1)
+            has_package = 0
+            $if s[0]==':' && s[1]==':'
+                s = f_scan_id(s+2)
+                has_package=1
+        n = (int)(s-s2)
+        $set_var_attr s2, strlen=n
+
+    subcode: gather_word_info
+        tn_bos_op=0
+        tn_unary_word=0
+        $if $(type:1)==T_BOS
+            tn_bos_op = $(value:1).op->type
+        $elif $(type:1)==* :||: T_FN_LIST, T_FN_1
+            tn_unary_word = $(value:1).n
+        $elif $(type:1)==T_BOC && $(type:2)==T_UNARY
+            tn_unary_word = $(value:2).op->left.n
+        NOOP
+

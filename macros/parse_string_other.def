@@ -1,0 +1,49 @@
+
+subcode:: string_qq_esc_other
+    case 'u':
+    case 'l':    
+        $if s[2]
+            $call wrap_op
+            op_tmp = f_parse_str_qq(s+2, is_regex)
+
+            $if s[1]=='u'
+                tn_word = WORD_ucfirst
+            $else
+                tn_word = WORD_lcfirst
+            $call new_op2, op_right, OP_UNARY,tn_word,op_tmp
+            $call join_op, op_right
+            return op
+        $else
+            $call die, "string \[ul] at end"
+
+subcode:: string_qq_esc_other
+    case 'U':
+    case 'L':
+    case 'Q':
+        ts_save = s
+        &call if_got_slash_E
+            $call wrap_op
+            op_tmp = f_parse_str_qq(ts_save+2, is_regex)
+            $if ts_save[1]=='U'
+                tn_word = WORD_uc
+            $elif ts_save[1]=='L'
+                tn_word = WORD_lc
+            $else
+                tn_word = WORD_quotemeta
+            $call new_op2, op_right, OP_UNARY,tn_word,op_tmp
+            $call join_op, op_right
+
+            $call restart, 2
+        $else
+            $call die, "unterminated \[ULQ]"
+
+    subcode: if_got_slash_E
+        s+=2
+        $while *s; s++
+            $if s[0]=='\\' && s[1]=='E'
+                break
+        $if s[0]=='\\'
+            s[0]='\0'
+            BLOCK
+                
+

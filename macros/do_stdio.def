@@ -1,0 +1,171 @@
+macros:
+    SV_TYPES:: SVt_io
+
+subcode: _autoload
+    $register_prefix(io) FILE *
+
+subcode:: sv_ref_release_cases
+    $case $(T:io)
+        # $print closing file ...
+        fclose((FILE*)sv->value.p)
+
+#----------------------------------------------- 
+macros:
+    KEY_FN_LIST:: open
+    KEY_FN_1:: close
+
+#---- FH ----------------------------------- 
+subcode:: parse_bareword
+    $case tn_unary_word == WORD_* :||: open, close, print, printf
+        $call set_var_io
+        break
+    $case $(type:1)==T_BOC && $(value:1).n=='<'
+        $call set_var_io
+        break
+
+    subcode: set_var_io
+        # ref: parse_var.def -- match_variable
+        $(set:s=ts_var_buf)
+        $(s)[0]='*' # sigil
+        memcpy($(s)+1, s2, n)
+        $(s)[n+1]='\0'
+        tn_op_type = OP_GLOBAL
+        i_var = find_global($(s))
+        $if !i_var
+            $if tn_unary_word==WORD_open
+                $call add_global, i_var, $(s), n+1
+            $else
+                $call error, "file handle [%s] not defned", $(s)
+        cur.type=T_ATOM
+        $call new_op2, cur.value.op, OP_GLOBAL,'*',i_var
+
+#---- print FH $atom -----
+subcode:: resolve_atom_atom
+    $(set:is_print=$(type:$1)==T_FN_LIST && ($(value:$1).n==WORD_print || $(value:$1).n==WORD_printf))
+    $case ($(is_print:2))||($(type:2)==T_BOC&&$(is_print:3))
+        $(type:0)=T_Comma
+        i_top++
+        goto try_reduce
+
+#---- <FH> ----------------------------------- 
+subcode:: resolve_op_op
+    $case cur.type == T_Lt
+        cur.type = T_BOC
+        cur.value.n = '<'
+        goto try_reduce
+
+macros:
+    # let's hack this keyword for <FH>
+    KEY_FN_1:: fread
+
+subcode:: resolve_op_other
+    $case cur.type == T_Gt
+        $if $(type:1)==T_BOC && $(value:1).n=='<'
+            $call new_op, op_fh, OP_GLOBAL, I_STDIN
+            $call new_op2, op, OP_UNARY, WORD_fread, op_fh
+            $call @check_fread_assign
+            goto lexer
+        $elif $(type:2)==T_BOC && $(value:2).n=='<'
+            $call assert, $(type:1)==T_ATOM
+            $call new_op2, op, OP_UNARY, WORD_fread, $(value:1).op
+            i_top--
+            $call @check_fread_assign
+            goto lexer
+
+    subcode: check_fread_assign
+        $if $(type:2)!=T_Eq
+            op_fread = op
+            $call new_op2, op_var, OP_GLOBAL, '$', I_ARG
+            $call new_op2, op, OP_ASSIGN, op_var, op_fread
+        $(type:1)=T_ATOM
+        $(value:1).op = op
+
+#---- open/close ----------------------
+subcode:: eval_fn_cases
+    case WORD_open:
+        sv_io = AV_shift(av)
+        sv_file = AV_get(av, 0)
+        $call assert, sv_io->type==SVt_io
+        SV_refdec(sv_io)
+        &call if_sv_string, sv_file
+            $call parse_open, $(s), $(n)
+            $if ts_mode
+                file_tmp = fopen(s, ts_mode)
+                $if file_tmp
+                    sv_io->value.p = file_tmp
+                    SV_refinc(sv_io)
+                    sv_ret = sv_io
+                $else
+                    sv_io->value.p = NULL
+            $else
+                $call die, "open: pipe yet to be supported"
+        $else
+            $call die, "open: missing file"
+        break
+    case WORD_close:
+        SV_refdec(sv_right)
+        break
+    # --------------------------
+    subcode: parse_open(s, n)
+        ts_mode="r"
+        s=$(s)
+        s_end = s+$(n)-1
+        $call parse_end
+        $if ts_mode
+            $call parse_head
+        # ------------------
+        subcode: parse_head
+            $call skip_space
+            $call head_mode, <, "r"
+            $call head_mode, >, "w"
+            $call head_mode, |, NULL
+            $call skip_space
+
+        subcode: parse_end
+            $call trim_space
+            $if *s_end=='|'
+                ts_mode=NULL
+            $call trim_space
+            s_end[1]='\0'
+
+        # ------------------
+        subcode: skip_space
+            $while *s==' '
+                s++
+        subcode: trim_space
+            $while *s_end==' '
+                s_end--
+
+        subcode: head_mode(a, mode)
+            $case *s=='$(a)'
+                ts_mode=$(mode)
+                s++
+
+#---- fread ----------------------------------
+macros:
+    MAX_LINE_SIZE: 10000
+
+subcode:: eval_fn_cases
+    case WORD_fread:
+        $global s_line_buffer[$(MAX_LINE_SIZE)]
+        # how about a set line_buffers, 1 for each open file?
+        sv_io = sv_right
+        file_in = sv_io->value.p
+        $if file_in
+            s = fgets(s_line_buffer, $(MAX_LINE_SIZE), file_in)
+            $if !s
+                break
+            $else
+                n = strlen(s)
+                sv_ret = get_svreg(SVt_string)
+                $call sv_set_s, sv_ret, s, n, 0
+                # $print -->| $s_line_buffer
+        break
+#----------------------------------------------- 
+subcode:: universal_vars
+    $call add_universal, *STDIN
+    $call add_universal, *STDOUT
+    $call add_universal, *STDERR
+    g_global[I_STDIN].value.p = stdin
+    g_global[I_STDOUT].value.p = stdout
+    g_global[I_STDERR].value.p = stderr

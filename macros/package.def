@@ -1,0 +1,165 @@
+macros:
+    KEY_OTHER:: use, require, no, package
+
+subcode:: define_ops
+    $call define_op, REQUIRE
+
+#----------------------------------------------- 
+subcode:: parse_keyword_other
+    $elif tn_word == WORD_package
+        s=f_skip_simple_spaces(s)
+        $if isword1st(*s)
+            $call scan_word, 1
+            $if n+2<$(MAX_PATH)
+                $(set:buf=s_filename_buf)
+                memcpy($(buf), s2, n)
+                strcpy($(buf)+n, "::")
+                $call new_package, $(buf)
+                $call skip_semi
+                goto lexer
+            $else
+                $call error, "name too long"
+        $else
+            $call error, "package"
+
+    $elif tn_word == WORD_use || tn_word==WORD_no
+        s=f_skip_simple_spaces(s)
+        $if isdigit(s[0]) ||  (s[0]=='v' && isdigit(s[1]))
+            $call scan_version
+        $elif isword1st(s[0])
+            $call scan_word, 1
+            $call @check_use_special, use
+            &call if_new_module, s2, n
+                $call add_module
+        $else
+            $call error "use"
+        done_use:
+        $call skip_semi
+        goto lexer
+
+    subcode: skip_semi
+        s=f_skip_spaces(s)
+        $if *s==';'
+            s++
+        $else
+            $call error, "semicolon expected after 'use'"
+
+    subcode: scan_version
+        s2=s
+        $if *s=='v'
+            s++
+        $while isdigit(*s) || *s=='.'
+            s++
+
+#----------------------------------------------- 
+subcode:: check_use_special(use)
+    $if s2 $eq "lib"
+        s=f_skip_simple_spaces(s)
+        # only support simple string
+        $if *s=~['"]
+            $call @scan_simple_string
+            sv = sv_from_s(s2, n)
+            av = (struct AV*)g_global[I_at_INC].value.p
+            AV_push(av, sv)
+            goto done_use
+        $else
+            $call error, "use lib"
+    # ----------
+    subcode: scan_simple_string
+        # no esc or var interpolation
+        $my s2, n
+        s = f_scan_delim(s, &s2, &n)
+        s2[n]='\0'
+
+#---- modules -----------------
+subcode:: perl_init
+    $global darray modules: char*
+
+subcode: if_new_module(name, n)
+    # assume (name, n) to be s2, n
+    $(if:name!=s2 and n!=n)
+        $warn if_new_module assumes s2, n
+
+    &call terminate_s2
+        tb_exist=0
+        $for i=0:modules_len
+            $if strcmp(modules[i], s2)==0
+                tb_exist=1
+                break
+        $if !tb_exist
+            BLOCK
+
+    subcode: terminate_s2
+        char_save = s2[n]
+        s2[n]='\0'
+        BLOCK
+        s2[n]=char_save
+
+    subcode: add_module
+        modules.$grow 1
+        $(set:s=modules[modules_len])
+        $allocate(n+4) $(s)
+        s3 = s2 # note: null terminated
+        i=0
+        $while *s3
+            $if s3=~/::/
+                $(s)[i++]='/'
+                s3+=2
+            $else
+                $(s)[i++]=*s3++
+        strcpy($(s)+i, ".pm")
+        modules_len++
+
+subcode: load_modules
+    $print loading $modules_len modules...
+    i=0
+    $while i<modules_len; i++
+        ts_file = find_module_file(modules[i])
+        $if ts_file
+            &call open_r, ts_file
+                # $print parsing $ts_file ...
+                &call compile
+                    cv_module = perl_parse(NULL, file_in)
+            $call run, cv_module
+        $else
+            $call die, "can't load module"
+
+#----------------------------------------------- 
+subcode:: universal_vars
+    $call add_universal, @INC
+    $call av_add_s, "."
+
+fncode: find_module_file(s_module_name)
+    $(set:buf=s_filename_buf)
+    av = (struct AV*)(g_global[I_at_INC].value.p)
+    n2 = strlen(s_module_name)
+    &call av_each, av
+        &call with_sv_string, $(sv)
+            n=$(n)
+            $if n+n2+1<$(MAX_PATH)
+                memcpy($(buf), $(s), n)
+                $(buf)[n]='/'
+                strcpy($(buf)+n+1, s_module_name)
+            $else
+                $call die, "find_module_file: path too long"
+        # $print "   check %s ...", $(buf)
+        $if file_exist($(buf))
+            return $(buf)
+    return NULL
+
+fncode: file_exist(s_file)
+    $include sys/stat.h
+    $local struct stat _stat
+    tn_ret = stat(s_file, &_stat)
+    $if tn_ret<0
+        return 0
+    $else
+        return 1
+
+#----------------------------------------------- 
+macros:
+    MAX_PATH: 1024
+
+subcode: _autoload
+    $global s_filename_buf[$(MAX_PATH)]
+
