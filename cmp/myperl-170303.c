@@ -939,7 +939,8 @@ int main(int argc, char** argv){
     subs_len = 1;
     file_in = fopen("tests/t.pl", "rb");
     if(file_in == NULL){
-        fprintf(stderr, "Can't open %s\n", "tests/t.pl");
+        fprintf(stderr, "Sorry, I only run tests/t.pl (for now)\n");
+        exit(-1);
     }
     else{
         g_local = NULL;

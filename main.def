@@ -38,10 +38,13 @@ page: myperl, basic_frame
     $call @perl_init # sets up globals
 
     $(set:f=tests/t.pl)
-    &call open_r, "$(f)"
+    &call2 try_open_r, "$(f)"
         &call compile
             $call new_package, "::"
             cv_main = perl_parse(NULL, file_in)
+    error:
+        $call die, "Sorry, I only run tests/t.pl (for now)"
+
     $call @load_modules
     stash_global = g_stashes[1]
     $call run, cv_main
