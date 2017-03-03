@@ -1,25 +1,30 @@
 subcode: _autoload
-    $struct(CV) stash, i_start, n_vars, n_seq, op_block
+    # ref: scope.def
+    $struct(CV) stash, i_file, i_start, n_vars, n_seq, op_block
     $struct(CV) int flag
     $register_prefix(cv) struct CV*
 
     $define(CVf_switch) 1
     $define(CVf_loop) 2
-
-    $global darray lex_stack: struct CV*
-    # compile time only need track size
-    $global cv_cur=NULL
-    $global i_local=0, i_global=0, i_seq=0
+    $define(CVf_sub) 3
 
 fncode: CV_new
     $local cv
     $allocate(1, 0) cv
     return cv
 
+macros:
+    is_top_scope: lex_stack_len==1
+
 #---- compile time parse_reduce ----------- 
+subcode: _autoload
+    $global darray lex_stack: struct CV*
+    $global cv_cur=NULL
+    $global i_seq=0
+
 subcode: cv_cur_wrap
     $(set:cv=cv_cur->$1)
-    $(cv:n_vars) = i_local - $(cv:i_start)
+    $(cv:n_vars) = g_local_len - $(cv:i_start)
     $(cv:n_seq)  = i_seq
 
 subcode: cv_begin
@@ -27,17 +32,13 @@ subcode: cv_begin
         $call cv_cur_wrap
     lex_stack.$push cv_cur
 
+    stash_local = stash_new()
     cv_cur = CV_new()
-    cv_cur->stash = stash_new()
-    cv_cur->i_start = i_local
-    $print cv_begin: i_local = $i_local, [$lex_stack_len]
-
+    cv_cur->stash = stash_local
+    cv_cur->i_file = cur_file_scope
+    cv_cur->i_start = g_local_len
     $call @debug_cv_begin
     i_seq = 0
-    stash_local = cv_cur->stash
-
-    $if !stash_global
-        stash_global = stash_local
 
 subcode: cv_close(op_block)
     $if $(op_block)->type == OP_SEQ
@@ -48,10 +49,9 @@ subcode: cv_close(op_block)
     $call cv_cur_wrap
 
     cv = cv_cur
-
     cv_cur = lex_stack.$pop
     $if cv_cur
-        i_local = cv_cur->i_start + cv_cur->n_vars
+        g_local_len = cv_cur->i_start + cv_cur->n_vars
         i_seq   = cv_cur->n_seq
         stash_local = cv_cur->stash
 

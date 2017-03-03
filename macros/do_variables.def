@@ -1,5 +1,5 @@
 subcode:: define_ops
-    $map define_op, GLOBAL, LOCAL, OUR, MY
+    $map define_op, GLOBAL, LOCAL, MY
     $map define_op, ASSIGN
 
 #-- ref: macrose/parse_var.def
@@ -9,33 +9,27 @@ subcode:: eval_op_cases
     case OP_LOCAL:
         i_var = (int)op->right.n
         sv_var = &g_local[i_var]
-        # $print "var: %p", sv_var
+        # $print "local var %d: %p", i_var, sv_var
         $if $(opT:MY)
-            memset(sv_var, 0, $(sv_size))
-            $call init_sv_var
-        return sv_var
-    case OP_OUR:
+            $call sv_set_type, sv_var, op->left.n
+        $call return_var
     case OP_GLOBAL:
         i_var = (int)op->right.n
         sv_var = &g_global[i_var]
-        # $print "var: %p", sv_var
-        $if $(opT:OUR)
-            memset(sv_var, 0, $(sv_size))
-            $call init_sv_var
-        return sv_var
-
-    subcode: init_sv_var
-        $if op->left.n=='@'
-            av = AV_new()
-            SV_set_p(sv_var, av, SVt_av)
-        $elif op->left.n=='%'
-            hv = HV_new()
-            SV_set_p(sv_var, hv, SVt_hv)
+        $call return_var
+    # -------------------
+    subcode: return_var
+        $if $(IS_LEFT)
+            return sv_var
+        $elif $(IS_VOID)
+            return NULL
+        $else 
+            return SV_copy(NULL, sv_var)
 
 #---- Index (ARRAY/HASH) ----------------
 subcode:: eval_op_cases
     case OP_HASH_INDEX:
-        sv_a = eval_op($(L), $(CTX))
+        sv_a = eval_op($(L), $(CTX_SCALAR))
         $if sv_a->type==SVt_hv
             hv = $(sv_hv:sv_a)
         $else
@@ -50,7 +44,7 @@ subcode:: eval_op_cases
         $map ret_svreg, sv_a, sv_b, sv_key
         return sv
     case OP_ARRAY_INDEX:
-        sv_a = eval_op($(L), $(CTX))
+        sv_a = eval_op($(L), $(CTX_SCALAR))
         $if sv_a->type==SVt_av
             av = $(sv_av:sv_a)
         $else
@@ -66,59 +60,73 @@ subcode:: eval_op_cases
     
 #---- Assignment ------------------------- 
 subcode:: eval_op_cases
+    # ref: do_bin_ops.def -- opeq
     case OP_ASSIGN:
         sv_var = eval_op($(L), $(CTX_LEFT))
-        sv_b = eval_op($(R), $(CTX))
-        return do_assign(op->type, sv_var, sv_b)
+        $if sv_var->type==SVt_av && $(sv_is_reg:sv_var)
+            sv_b = eval_op($(R), $(CTX_LIST))
+            $call op_assign_av
+        $else
+            # dump_sv(sv_var, "assign ")
+            sv_b = eval_op($(R), $(CTX_SCALAR))
+            do_assign(sv_var, sv_b)
 
-fncode: do_assign(tn_op, sv_var, sv_val)
+        sv_ret=SV_copy(NULL, sv_var)
+        $map ret_svreg, sv_var, sv_b
+        return sv_ret
+
+    subcode: op_assign_av
+        av_a = $(sv_av:sv_var)
+        $if !av_a
+            # empty
+            av_a=AV_new()
+            sv_a->value.p = av_a
+        $if sv_b->type==SVt_av
+            av_b = $(sv_av:sv_b)
+            &call av_each, av_a
+                do_assign($(sv), AV_get(av_b, $(i)))
+        $else
+            &call av_each, av_a
+                $if i==0
+                    do_assign($(sv), sv_b)
+                $else
+                    SV_undef($(sv))
+
+fncode: do_assign(sv_var, sv_val)
+    $if !sv_var
+        return
+
+    SV_undef(sv_var)
+    $if !sv_val
+        return
+
     # $print "do_assign %p <- %p", sv_var, sv_val
-    SV_refdec(sv_var)
     $if sv_var->type==SVt_hv
         $if sv_val->type==SVt_av
             $call copy_hash, sv_var, sv_val
-            goto done
+            return
         $else
             $call die, "Error\n"
+
     $if sv_var->type==SVt_av
         $if sv_val->type!=SVt_av
             $call die, "Error\n"
 
-    memcpy(sv_var, sv_val, $(sv_size))
-    sv_var->flag = 0
-    $if $(sv_is_reg:sv_val)
-        # simply grab
-        sv_val->flag=0
-    $else
-        $call copy_variable, sv_var, sv_val
-    done:
-    $call ret_svreg, sv_val
-    return sv_var
+    SV_copy(sv_var, sv_val)
 
-subcode: copy_variable(dst, src)
-    $(set:T=$(src)->type==SVt_$1)
-    $if $(T:string)
-        $(set:n=$(src)->value.S.n)
-        $(set:size=$(dst)->value.S.size)
-        $(set:s=$1->value.S.s)
-        $(size)=$(n)+1
-        $(s:$(dst)) = malloc($(size))
-        memcpy($(s:$(dst)), $(s:$(src)), $(n))
-    $elif $(T:av)
-        $call error, "not supported"
-    $elif $(T:hv)
-        $call error, "not supported"
-    # todo: av, hv
-
-subcode: copy_hash(dst, src)
-    av = $(sv_av:$(src))
-    hv = $(sv_hv:$(dst))
-    &call av_each_pair, av
-        sv_key = do_string($(sv))
-        &call if_sv_string, sv_key
-            HV_set(hv, $(s), $(n), $(sv2))
-        $else
-            # null
-            $call die, "error"
+    # -----------------------------
+    subcode: copy_hash(dst, src)
+        av = $(sv_av:$(src))
+        hv = $(sv_hv:$(dst))
+        $if !hv
+            hv = HV_new()
+            $(dst)->value.p = hv
+        &call av_each_pair, av
+            sv_key = do_string($(sv))
+            &call if_sv_string, sv_key
+                HV_set(hv, $(s), $(n), $(sv2))
+            $else
+                # null
+                $call die, "error"
 
 

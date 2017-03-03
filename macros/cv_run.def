@@ -1,52 +1,30 @@
 include: c/darray.def
 
-# my variables lives on the stack
-# our variables lives in global
-
-subcode: run_init
-    # runtime variables
-    $global darray g_local: struct SV
-    $global darray g_global: struct SV
-    g_global.$grow i_global
-
 fncode: run_cv
     $parameter cv, $(PARAM_CTX)
-    $(set:cv=cv)
-    i_0 = cv->i_start
-    i_n = g_local_len
-    n = i_n - i_0
-
-    $call local_save
-    $if cv->n_vars>0
-        g_local.$grow cv->n_vars
-        g_local_len+=cv->n_vars
-        $print "g_local grow by %d -> %d", cv->n_vars, g_local_len
+    $if tn_level>0
+        i_0 = cv->i_start
+        i_n = g_local_len
+        $if cv->n_vars>0
+            memset(g_local+i_0, 0, cv->n_vars * $(sv_size))
+            g_local_len+=cv->n_vars
+        $else
+            g_local_len = i_0
+    $else
+        memset(g_local, 0, g_local_len * $(sv_size))
 
     $call @debug_run_cv_enter
     $call run_cv_block
     $call @debug_run_cv_leave
 
-    $for i=i_0:g_local_len
-        SV_refdec(&g_local[i])
+    $if tn_level>0
+        $for i=i_0:g_local_len
+            # $print deref $i
+            SV_refdec(&g_local[i])
+        g_local_len = i_n
 
-    $call local_restore
     return sv_ret
 
-    subcode: local_save
-        $my sv_save
-        $if n>0
-            $print local_save: $n
-            $allocate(n) sv_save
-            memcpy(sv_save, g_local+i_0, n*$(sv_size))
-            g_local_len = i_0
-        $else
-            sv_save=NULL
-        
-    subcode: local_restore
-        $if sv_save
-            memcpy(g_local+i_0, sv_save, n*$(sv_size))
-            g_local_len = i_n
-            free(sv_save)
 
     subcode: run_cv_block
         op_block = cv->op_block
@@ -54,22 +32,81 @@ fncode: run_cv
             # label, goto, break, continue  only supported in OP_block
             $call do_cv_op_block
         $else # OP_CV, OP_IF
-            sv_ret = eval_op(cv->op_block, $(CTX))
+            sv_ret = eval_op(cv->op_block, $(CTX_VOID))
+        # ----------------------
+        subcode: do_cv_op_block
+            n = op_block->left.n
+            op_list = op_block->right.op
+            i=0
+            $while 1
+                $(set:op=op_list[i])
+                $call @debug_cv_run_op_block
+                sv_ret=eval_op(&$(op), 0, 0)
+                $if sv_ret && sv_ret->type==SVt_goto
+                    $call @handle_goto
+                i++
+                $if i<n
+                    $call ret_svreg, sv_ret
+                $else
+                    break
+
 
 #- goto, and op_block ----------------------- 
 subcode:: define_ops
-    $map define_op, block, goto, break
+    $map define_op, block, GOTO_LABEL, GOTO, BREAK, RETURN
 
+subcode:: reduce_goto_etc
+    $(set:WORD=$(op_n)==WORD_$1)
+    $case $(WORD:goto)
+        $call new_op, op, OP_GOTO_LABEL, $(term)
+    $case $(WORD:return)
+        $call get_sub_cv
+        $call new_op2, op, OP_RETURN, cv, $(term)
+    $else # next, last, redo
+        $if !$(term)
+            $call get_loop_cv
+            $map set_goto_special, next, last, redo
+            $call new_op2, op, OP_GOTO, cv, tn_i
+        $else
+            $call @reduce_loopex_label
+
+    subcode: set_goto_special(word)
+        $case $(op_n)==WORD_$(word)
+            tn_i = GOTO_$(word)
+
+    subcode: get_loop_cv
+        # default to parent cv
+        i=lex_stack_len-1
+        cv = lex_stack[i]
+        $while i>0;i--
+            $if lex_stack[i]->flag==CVf_loop
+                cv = lex_stack[i]
+                break
+    subcode: get_sub_cv
+        $if cv_cur->flag==CVf_sub
+            cv = cv_cur
+        $else
+            i=lex_stack_len-1
+            $while i>0;i--
+                $if lex_stack[i]->flag==CVf_sub
+                    cv = lex_stack[i]
+                    break
+            $if i==0
+                $call error, "return outside sub"
+
+#----------------------------------------------- 
 macros:
     SV_UNION:: struct GOTO G
+    SV_TYPES:: SVt_cv, SVt_goto
 
-subcode:: define_sv_types
+subcode:: sv_prerequisite
+    $register_prefix(cv) struct CV*
     $struct(GOTO) cv, i
 
-    $map define_sv_type, goto
-    $define(GOTO_break) -1
+    $define(GOTO_last) -1
     $define(GOTO_next) -2
     $define(GOTO_redo) -3
+    $define(GOTO_return) -4
 
 subcode: sv_set_goto(sv, cv, i)
     $(sv)->type = SVt_goto
@@ -77,80 +114,66 @@ subcode: sv_set_goto(sv, cv, i)
     $(sv)->value.G.i = $(i)
 
 subcode:: eval_op_cases
-    case OP_goto:
-        sv = get_svreg()
+    case OP_GOTO:
+        sv = get_svreg(SVt_goto)
         $call sv_set_goto, sv, op->left.cv, op->right.n
         return sv
+    case OP_GOTO_LABEL:
+        $call die, "goto label not supported"
 
-subcode: do_cv_op_block
-    n = op_block->left.n
-    op_list = op_block->right.op
-    i=0
-    $while 1
-        $(set:op=op_list[i])
-        $call @debug_cv_run_op_block
-        sv_ret=eval_op(&$(op), 0, 0)
-        $if sv_ret
-            $call @check_ret_goto
-        i++
-        $if i<n
-            $call ret_svreg, sv_ret
-        $else
+#----------------------------------------------- 
+subcode: handle_goto
+    $(set:i=sv_ret->value.G.i)
+    $(set:b=sv_ret->value.G.cv)
+    $if $(i)>0
+        # goto
+        $call check_goto
+    $else
+        # last, next, redo
+        $call check_break
+
+    subcode: check_goto
+        $if !$(b) || $(b) == cv
+            # in-block goto
+            i=$(i)
+            $if i<n
+                $call ret_svreg, sv_ret
+                continue
+        $call ret_svreg, sv_ret
+        sv_ret = NULL
+        break
+
+    subcode: check_break
+        $if $(b) != cv
             break
+        $elif $(i)==GOTO_return
+            $call simple_break
+        $elif cv->flag == CVf_loop
+            $if $(i) == GOTO_last
+                $call simple_break
+            $elif $(i) == GOTO_next
+                $call loop_next
+            $elif $(i) == GOTO_redo
+                $call loop_redo
+        $else
+            # Bare block
+            $if $(i) == GOTO_last ||$(i) == GOTO_next
+                $call simple_break
+            $elif $(i) == GOTO_redo
+                # redo the block
+                continue
 
-    subcode: check_ret_goto
-        $if sv_ret->type==SVt_goto
-            $(set:i=sv_ret->value.G.i)
-            $(set:b=sv_ret->value.G.cv)
-            $if $(i)>0
-                # goto
-                $call check_goto
-            $else
-                # last, next, redo
-                $if $(op).type == OP_CV
-                    $call check_cv_break
-                $else
-                    $call check_block_break
-
-        subcode: check_goto
-            $if !$(b) || $(b) == cv
-                # in-block goto
-                i=$(i)
-                $if i<n
-                    $call ret_svreg, sv_ret
-                    continue
+        subcode: simple_break
             $call ret_svreg, sv_ret
             sv_ret = NULL
             break
 
-        subcode: check_block_break
-            # parent handle it
-            break
+        subcode: loop_next
+            $call ret_svreg, sv_ret
+            sv_ret = NULL
+            i+=1
+            continue
 
-        subcode: check_cv_break
-            $if $(b) == cv
-                # parent handle it
-                break
-            $elif cv->flag == CVf_loop
-                $if $(i) == GOTO_break
-                    $call ret_svreg, sv_ret
-                    sv_ret = NULL
-                    break
-                $elif $(i) == GOTO_next
-                    $call ret_svreg, sv_ret
-                    sv_ret = NULL
-                    i+=1
-                    continue
-                $elif $(i) == GOTO_redo
-                    # goto condition
-                    i-=1
-                    continue
-            $else
-                # Bare block
-                $if $(i) == GOTO_break ||$(i) == GOTO_next
-                    $call ret_svreg, sv_ret
-                    sv_ret = NULL
-                    break
-                $elif $(i) == GOTO_redo
-                    # redo the block
-                    continue
+        subcode: loop_redo
+            i-=1 # goto condition
+            continue

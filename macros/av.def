@@ -17,12 +17,8 @@ fncode: AV_free(av)
     $call @debug_AV_free
     $if av->p_array
         $for i=av->i_0:av->i_n
-            SV_refdec(av->p_array[i])
-        free(av->p_array)
-    free(av)
-
-fncode: AV_free_0(av)
-    $if av->p_array
+            $if av->p_array[i]
+                SV_refdec(av->p_array[i])
         free(av->p_array)
     free(av)
 
@@ -93,7 +89,8 @@ fncode: AV_push(av, sv_value)
         AV_resize(av, 0)
     av->p_array[av->i_n]=sv_value
     av->i_n++
-    SV_refinc(sv_value)
+    $if sv_value
+        SV_refinc(sv_value)
 
 # push/pop, caller responsible for ref_dec
 fncode: AV_pop(av)
@@ -101,12 +98,14 @@ fncode: AV_pop(av)
     $if av->i_n>av->i_0
         av->i_n--
         return av->p_array[av->i_n]
+    return NULL
 
 fncode: AV_shift(av)
     $return_type struct SV *
     $if av->i_n>av->i_0
         av->i_0++
         return av->p_array[av->i_0-1]
+    return NULL
 
 fncode: AV_grow(av, n)
     $if av->i_n+n >= av->size
@@ -128,6 +127,7 @@ fncode: AV_unshift(av, n)
 fncode: AV_get(av, i)
     $return_type struct SV*
     j=av->i_0+i
+    # $print "AV_get $i <%d-%d> $j", av->i_0, av->i_n
     $if j <av->i_n
         return av->p_array[j]
     $else
@@ -145,6 +145,7 @@ fncode: AV_set(av, i, sv_value)
 subcode: av_each(av)
     $for i=$(av)->i_0:$(av)->i_n
         $(set:sv=$(av)->p_array[i])
+        $(set:i=i-$(av)->i_0)
         BLOCK
 
 subcode: av_each_pair(av)

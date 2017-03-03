@@ -1,13 +1,14 @@
 macros:
     CTX: tn_context, tn_level+1
-    CTX_SCALAR: 0, tn_level+1
-    CTX_LIST: 1, tn_level+1
-    CTX_LEFT: 2, tn_level+1
-    CTX_BOOL: 3, tn_level+1
+    CTX_VOID: 0, tn_level+1
+    CTX_SCALAR: 1, tn_level+1
+    CTX_LIST: 2, tn_level+1
+    CTX_LEFT: 3, tn_level+1
 
-    IS_LIST: tn_context==1
-    IS_LEFT: tn_context==2
-    IS_BOOL: tn_context==3
+    IS_VOID: tn_context==0
+    IS_SCALAR: tn_context==1
+    IS_LIST: tn_context==2
+    IS_LEFT: tn_context==3
 
     PARAM_CTX: tn_context, tn_level
 
@@ -30,7 +31,7 @@ fncode: eval_op
         case OP_CV:
             return run_cv(op->right.cv, $(CTX))
         case OP_CONST:
-            return op->right.sv
+            return SV_copy(NULL, op->right.sv)
         case OP_LIST:
             return eval_list($(L), $(R), $(CTX))
         $call @eval_op_cases
@@ -66,7 +67,7 @@ fncode: eval_list
     return sv
 
     subcode: av_push(av_list, sv_item)
-        $if $(sv_item)->type==SVt_av
+        $if $(sv_item) && $(sv_item)->type==SVt_av
             av_item = $(sv_av:$(sv_item))
             $call assert, av_item!=av
             &call av_each, av_item

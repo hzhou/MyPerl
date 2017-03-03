@@ -1,9 +1,12 @@
+#----------------------------------------------- 
+# defines terminal names such as T_Semi, ...
+# spcifies precedence
 subcode: define_op_precedence
     $map op, left, ;
     $map op, left, or
     $map op, left, and
     $map op, right, not
-    $map op, pre, FN_LIST
+    $map op, pre, FN_LIST, FN_GOTO
     $map op, left, Comma
     $map op, right, =,+=,-=,*=,/=,%=,.=,|=,&=,^=,>>=,<<=
     $map op, right, :, ?
@@ -14,7 +17,7 @@ subcode: define_op_precedence
     $map op, left, &
     $map op, left, ==, !=, <=>, eq, ne, cmp
     $map op, left, <, >, <=, >=, lt, gt, le, ge
-    $map op, left, FN_1
+    $map op, pre, FN_1
     $map op, left, >>, <<
     $map op, left, +, -, .
     $map op, left, *, /, %, x

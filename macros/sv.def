@@ -1,13 +1,29 @@
-include: macros/sv_string.def
+subcode:: _autoload
+    $register_prefix(sv) struct SV*
+    $register_prefix(av) struct AV*
+    $register_prefix(hv) struct HV*
+
+    $register_name(f) double
+    $register_prefix(f) double
 
 macros:
-    SV_UNION:: n, f, struct STRING S, void* p
-    SV_UNION:: struct INTEGER N, struct FLOAT F
+    SV_UNION:: n, f, void* p
+    # SV_UNION:: struct INTEGER N, struct FLOAT F
+
+    # BASIC can directly copy values
+    SV_BASIC:: SVt_undef, SVt_int, SVt_float
+    # Other SV may hold additional pointers
+    SV_TYPES:: SVt_av, SVt_hv, SVt_sv
 
 subcode: _autoload
-    $call @define_sv_types
-    $struct(SV) char type, char flag, int refcnt, union value
+    $call @sv_prerequisite
+    $(set:t=unsigned char)
+    $struct(SV) $(t) type, $(t) flag, $(t) copy, $(t) refcnt, union value
     $union $(SV_UNION)
+
+    $(set:types=$(SV_BASIC),SVt_BASIC,$(SV_TYPES))
+    $enum $(types)
+    $global char* SV_names[]={$(join:"*":,:$(types))}
 
     #- const: e.g. part of OP code (literal const)
     #- register: get_svreg(), holds intermediate
@@ -15,43 +31,16 @@ subcode: _autoload
     $define(SVf_const) 0
     $define(SVf_register) 1
     $define(SVf_var) 2
-    $(block:main_init)
-        $global sv_TRUE, sv_FALSE
-        $(for:TRUE,FALSE)
-            sv_$1 = get_sv(0)
-            sv_$1->refcnt = -1
-        $call sv_set_n, sv_TRUE, 1
-        $call sv_set_n, sv_FALSE, 0
 
-subcode:: define_sv_types
-    $register_prefix(sv) struct SV*
-    $register_prefix(av) struct AV*
-    $register_prefix(hv) struct HV*
-    $register_prefix(cv) struct CV*
-    $register_prefix(io) FILE *
-
-    $register_name(f) double
-    $register_prefix(f) double
-
-    $global char* SV_names[]={DUMP_STUB SV_names}
-    $(block:SV_names)
-        "NULL",
-    $map define_sv_type, int, float, number
-    $map define_sv_type, const, string, integer, fixed
-    $map define_sv_type, sv, av, hv, cv, io
-
-    subcode: define_sv_type(T)
-        $(setmacro:_sv_type+=1)
-        $define(SVt_$(T)) $(_sv_type)
-        $(block:SV_names)
-            "SVt_$(T)",
-
-subcode:: define_sv_types
-    $struct(STRING) s, n, size
+/*
+subcode: _autoload
     $struct(INTEGER) uint64_t* p, char sign, short n, size
     $struct(FLOAT) f, f_eps
     $struct(COMPLEX) f_r, f_i
-
+    # $map define_sv_type, string, integer, fixed
+    # $map define_sv_type, sv, av, hv, cv
+*/
+#----------------------------------------------- 
 fncode: get_SV_name(n_type)
     return SV_names[n_type]
 
@@ -62,6 +51,21 @@ macros:
     sv_is_var: ($1->flag&3)==SVf_var
     
 #----------------------------------------------- 
+subcode: sv_set_type(sv, sigil)
+    $if $(sigil)=='@'
+        $(sv)->type = SVt_av
+    $elif $(sigil)=='%'
+        $(sv)->type = SVt_hv
+    $elif $(sigil)=='*'
+        $(sv)->type = SVt_io
+    $else
+        $(sv)->type = SVt_undef
+
+subcode: sv_init(sv, type)
+    $(sv)->type = $(type)
+    $(sv)->refcnt = 1
+    memset(&$(sv)->value, 0, sizeof($(sv)->value))
+
 subcode: sv_set_n(sv, n)
     $(sv)->type = SVt_int
     $(sv)->value.n=$(n)
@@ -71,9 +75,10 @@ subcode: sv_set_f(sv, f)
     $(sv)->value.f=$(f)
 
 # -------------------------------------
-fncode: SV_set_p(sv, void* p, int type)
-    sv->type = type
-    sv->value.p=p
+subcode: sv_set_p(sv, p, type)
+    $(if:type!=_)
+        $(sv)->type = $(type)
+    $(sv)->value.p=(void*)$(p)
 
 #---- Ref Counting -------------------------- 
 fncode: SV_refinc(sv)
@@ -84,18 +89,27 @@ fncode: SV_refdec(sv)
     $if sv->refcnt>0
         sv->refcnt--
         $if sv->refcnt==0
+            $call @sv_decopy
             $(set:T=sv->type==SVt_$1)
+            $(set:p=sv->value.p)
             $call @sv_ref_release
-            $if sv->type == SVt_string && sv->value.S.size>0
-                free(sv->value.S.s)
-            $elif sv->type == SVt_sv
-                SV_refdec((struct SV*)sv->value.p)
-            $elif sv->type == SVt_av
-                AV_free((struct AV*)sv->value.p)
-            $elif sv->type == SVt_hv
-                HV_free((struct HV*)sv->value.p)
-            $elif sv->type == SVt_io
-                fclose((FILE*)sv->value.p)
+            $case $(p)
+                $case $(T:sv)
+                    SV_refdec((struct SV*)$(p))
+                $case $(T:av)
+                    AV_free((struct AV*)$(p))
+                $case $(T:hv)
+                    HV_free((struct HV*)$(p))
+                $call @sv_ref_release_cases
+                sv->value.p = NULL
+    return
+
+fncode: SV_undef(sv)
+    SV_refdec(sv)
+    memset(&sv->value, 0, sizeof(sv->value))
+    $(set:T=sv->type==SVt_$1)
+    $if !($(T:av) || $(T:hv))
+        sv->type=SVt_undef
 
 macros:
     sv_av: (struct AV*)$1->value.p

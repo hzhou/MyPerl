@@ -1,204 +1,207 @@
+include: macros/parse_string_other.def
+#----------------------------------------------- 
+#-  convention: 
+#-      if param is (s, n), do not assume null-terminated
+#-      if param is (s), assume null-terminated
+
 subcode:: parse_match_cases
     $elif *s=~['"]
-        $my sv
+        $my op
         $if *s=='\''
-            s = f_get_str_q(s, &sv)
+            s = f_get_str_q(s, &op)
         $else
-            s = f_get_str_qq(s, &sv)
+            s = f_get_str_qq(s, &op)
         $if s==NULL
             $call error, "unterminated string"
-        $call set_atom, OP_CONST, sv
+
+        $call set_cur, T_ATOM, op
         break
 
 #----------------------------------------------- 
-fncode: f_get_str_q(s, struct SV ** p_sv)
+fncode: f_get_str_q(s, struct OP ** p_op)
+    $call set_delim, s
     $local s2, n
     s = f_scan_delim(s, &s2, &n)
-    $if s
-        *p_sv = sv_from_s(s2, n)
+    $if s && p_op
+        s2[n]='\0'
+        $call @unescape_q
+        sv = sv_from_s(s2, n)
+        $call new_op, op, OP_CONST, sv
+        *p_op = op
+    return s
+    # --------------- 
+    subcode: unescape_q
+        $(set:s=t_s)
+        $(s)=s2
+        n_skip=0
+        $while *$(s); $(s)++
+            $(set:esc='\\')
+            $(set:c2=$(s)[1])
+            $if *$(s)==$(esc) && ($(c2)==c_end || $(c2)==$(esc))
+                n_skip++
+                $(s)++
+            $if n_skip>0
+                $(s)[-n_skip]=*$(s)
+        n-=n_skip
+
+# fncode: f_get_str_qq(s, struct SV ** p_sv)
+fncode: f_get_str_qq(s, struct OP ** p_op)
+    $local s2, n
+    s = f_scan_delim(s, &s2, &n)
+    $if s && p_op
+        s2[n]='\0'
+        *p_op = f_parse_str_qq(s2, 0)
     return s
 
-fncode: f_get_str_qq(s, struct SV ** p_sv)
-    $local s2, n
-    s = f_scan_delim(s, &s2, &n)
-    $if s
-        tb_simple=1
-        $call parse_string
-        $if tb_simple
-            n = ts_1-s2
-            *p_sv = sv_from_s(s2, n)
+#---------------------------------------------------
+# now assume s is null-terminated, things get easier
+fncode: f_parse_str_qq(s, is_regex)
+    $my op = NULL
+    $local char* d=s
+    s_begin = s
+
+    $while *s; s++
+        $if *s == '\\'
+            switch(s[1]){
+                $map simple_esc, n,t,r,f,a,b # no \v
+                $call @esc_cases
+                $call @string_qq_esc_other
+            }
+            $if !is_regex
+                *d++ = s[1]
+                $call next, 2
+        $elif *s =~ [$@]
+            ts_sigil = s
+            char_sigil = *s
+            $if s[1]=~[_1-9]
+                $call @wrap_var, s, 2
+                $call restart, 2
+            $elif !isword1st(s[1]) && s[1]!='{'
+                *d++ = *s++
+                continue
+            $elif s[1]=='{'
+                s = f_scan_delim_quick(s+1)
+                s++
+                $call @wrap_var, ts_sigil, s-ts_sigil
+                $call restart, 0
+            $else
+                s++
+                $while *s=='$' # $$ref
+                    s++
+                s = f_scan_word(s+1)
+                $call scan_var_indexes
+                $call @wrap_var, ts_sigil, s-ts_sigil
+                $call restart, 0
+        *d++ = *s
+    $call wrap_op
+    return op
+    # ----------------
+    subcode: wrap_op
+        $if d>s_begin
+            $call op_const, op_right
+            $call join_op, op_right
+
+    subcode: join_op(R)
+        $if !op
+            op = $(R)
         $else
-            $print "Unsupported string const!"
-    return s
+            op_left = op
+            $call new_op2, op, OP_$(sym:.), op_left, $(R)
 
-    subcode: parse_string
-        ts_1 = s2
-        ts_2 = s2
-        ts_n = s2+n
-        $while ts_2<ts_n
-            $if *ts_2=='\\'
-                $map simple_esc, n,t,r,a,b
+    subcode: next(n)
+        $(if:n!=0)
+            s+=$(n)
+        continue
+
+    subcode: restart(n)
+        $(if:n!=0)
+            s+=$(n)
+        s_begin = d = s
+        continue
+
+    subcode: op_const(op)
+        sv = sv_from_s(s_begin, d-s_begin)
+        $call new_op, $(op), OP_CONST, sv
+
+    subcode: wrap_var(s, n)
+        op_var = f_parse_var($(s), $(n))
+        $call @join_array_var
+        $call wrap_op
+        $call join_op, op_var
+
+        subcode: join_array_var
+            $if char_sigil=='@'
+                $call new_op2, op_sep, OP_GLOBAL, '$', I_LIST_SEPARATOR 
+                $call new_op2, op_list, OP_LIST, op_sep, op_var
+                $call new_op, op_var, OP_join, op_list
+
+    # ---- esc: \n,\t,\xhh,\0dd,\x{code},\l,\u,\Q,\E,...
+    subcode: simple_esc(n)
+        case '$(n)':
+            *d++ = '\$(n)'
+            $call next, 2
+
+    subcode:: esc_cases
+        case 'e':
+            *d++ = '\x1b'
+            $call next, 2
+
+    subcode:: esc_cases
+        case '0':
+            $if isoct(s[2]) && isoct(s[3])
+                $(set:d=(s[$1]&0xf))
+                *d++ = $(d:2)*8 + $(d:3)
+                $call next, 4
+            $else
+                break
+    subcode:: esc_cases
+        case 'x':
+            tn_num = hex(s+2, 2)
+            $if s[2]=='{'
+                $call string_qq_esc_unicode
+            $elif tn_num>=0
+                *d = tn_num # check
+                $call next, 4
+            $else
+                break
+    subcode:: esc_cases
+        case 'c':
+            $if isalpha(s[2])
+                *d++ = s[2]&0xf
+                $call next, 3
+            $else
+                break
+    # -----------------------------------------
+    subcode: scan_var_indexes
+        $if *ts_sigil=='$'
+            # check index, potentially ambiguous
+            $while 1
+                $(set:bracket=$1=='[' || $1=='{')
+                $if $(bracket:*s)
+                    $call scan, s
+                $elif s[0]=='-' && s[1]=='>' && ( $(bracket:s[2]) )
+                    $call scan, s+2
                 $else
-                    *ts_1++ = ts_2[1]
-                    ts_2+=2
+                    break
+        subcode: scan(s)
+            ts_save = s
+            s = f_scan_delim_quick($(s))
+            $if s
+                s++
             $else
-                $if ts_1<ts_2
-                    *ts_1 = *ts_2
-                ts_1++
-                ts_2++
+                s=ts_save
+                break
 
-
-        subcode: simple_esc(n)
-            $case ts_2[1]=='$(n)'
-                *ts_1++ = '\$(n)'
-                ts_2+=2
-
-#-- old ------------------------------------- 
-fncode: f_scan_quote(s, char** p_str, pn_len)
-    c_mark = *s++ # ', ", `
-    $if c_mark == '('
-        c_mark =  ')'
-
-    c_state=0
-    $local pc_hold[100], n_hold=0
-    $(mset:esc=1,oct=2,hex_braket=3,name_braket=4)
-    &call src_scan_loop
-        $if *s==c_mark & c_state!=$(esc)
-            s++
-            break
-        $elif !c_state
-            $if *s=='\\'
-                c_state=$(esc)
-            $else
-                *d++ = *s++
-        $elif c_state==$(esc)
-            $map esc, nt
-            $call esc, e
-            $map hold, x, o, c, N
-            $map esc, brfa
-            # \x7f good, \033 unnecessary
-            $elif *s =~ [0-7]
-                c_state=$(oct)
-                pc_hold[0]=*s
-                n_hold=1
-            $else
-                c_state=0
-                *d++ = *s++
-        $elif c_state == $(oct)
-            $call on_oct
-        $elif c_state == 'x'
-            $call on_hex
-        $elif c_state == 'c'
-            $call on_ctrl
-        $elif c_state=='N' 
-            $call on_braket, $(name)
-        $elif c_state=='o' 
-            $call on_braket, $(oct_braket)
-        $elif c_state==$(hex_braket)
-            $call on_hex_braket
-        $elif c_state==$(oct_braket)
-            $call on_oct_braket
-        $elif c_state==$(name_braket)
-            $call on_name_braket
-            
-    subcode: esc(c)
-        $case *s=='$(c)'
-            $(if:c=e)
-                *d++ = 0x1b
-            $(else)
-                *d++ = '\\$(c)'
-            s++
-    subcode: hold(c)
-        $case *s=='$(c)'
-            c_state='$(c)'
-            n_hold=0
-            s++
-    # ------------------
-    subcode: on_oct
-        $if *s=~[0-7]
-            pc_hold[n_hold++]=*s++
-            $if n_hold==3
-                c_state=0
-        $else
-            c_state=0
-        $if !c_state
-            $call translate_oct
-
-    subcode: on_hex
-        $if *s=~[0-9a-fA-F]
-            pc_hold[n_hold++]=*s++
-            $if n_hold==2
-                c_state=0
-        $elif n_hold==0 and *s=='{'
-            c_state=$(hex_braket)
-            s++
-        $else
-            c_state=0
-        $if !c_state
-            $call translate_hex
-
-    subcode: on_ctrl
-        $if *s=~[A-Z]
-            *d++ = *s - 'A'
-        $else
-            *d++ = '\0'
-        s++
-        c_state=0
-
-    subcode: on_braket(type)
-        $if *s=='{'
-            c_state=$(type)
-        $else
-            # error
-            c_state=0
-        s++
-
-    # -----
-    subcode: scan_bracket_frame
-        $if *s=='}'
-            c_state=0
-            s++
-            BLOCK1
-        $else
-            $if n_hold<100
-                pc_hold[n_hold++] = *s
-            BLOCK2
-            s++
-
-    subcode: on_name_braket
-        &call scan_bracket_frame
-            # translate name
-
-    subcode: on_hex_braket
-        &call scan_bracket_frame
-            $call translate_hex
-        check:
-            $if !isXDIGIT(*s)
-                # error
-
-    subcode: on_oct_braket
-        &call scan_bracket_frame
-            $call translate_oct
-        check:
-            $if !isXDIGIT(*s)
-                # error
-
-    # ----
-    subcode: translate_oct
-        n=0
-        $for i=0:n_hold
-            n=(n<<3)+pc_hold[i]-'0'
-
-    subcode: translate_hex
-        n=0
-        $for i=0:n_hold
-            $if pc_hold[i]=~[0-9]
-                n=(n<<4)+pc_hold[i]-'0'
-            $elif pc_hold[i]=~[a-f]
-                n=(n<<4)+pc_hold[i]-'a'+10
-            $elif pc_hold[i]=~[A-F]
-                n=(n<<4)+pc_hold[i]-'A'+10
-
-    subcode: translate_name
-
-
+#---- support ---------------------------------- 
+subcode: string_qq_esc_unicode
+    ts_save = s
+    s=f_scan_delim_quick(s+2)
+    $if s
+        tn_num = hex(s, s-ts_save)
+        $if tn_num>=0
+            t_n=utf(d, tn_num)
+            $if t_n>0
+                d+=t_n
+                continue
+        s+=1 # skip }
+    $call die, "string \\x{code}"

@@ -120,6 +120,7 @@ subcode: parse_frame
             goto do_shift
 
         try_reduce:
+        $call @pre_reduce
         &call try_reduce
             $if $(is_atom:cur.type)
                 $call check_atom_context
@@ -176,12 +177,16 @@ subcode: parse_frame
                 $else
                     # break if resolved
                     #   turn cur into uniop
+                    $(set:T=cur.type==T_$1)
+                    $(set:T1=$(type:1)==T_$1)
                     $call @resolve_op_op
                     $call error, "unexpected operator!"
-            $elif $(is_atom:$(type:1))
+            $else # $(is_atom:$(type:1))
                 $if $(op_prefix:cur.type)
                     $call @resolve_atom_prefix
                     $call error, "unexpected unary operator"
+            $call @resolve_op_other
+
         subcode: if_less_precedence
             $(set:p0=$(op_prec:cur.type))
             $(set:p1=$(op_prec:$(type:2)))

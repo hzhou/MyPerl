@@ -97,49 +97,53 @@ fncode:@ f_scan_word(s)
         s++
     return s
 
+fncode:@ f_scan_id(s)
+    $while 1
+        $if isword(*s)
+            s++
+        $elif s[0]==':' && s[1]==':'
+            s++
+        $else
+            return s
+#----------------------------------------------- 
+# find c_end, e.g. ), ], }, as well as ', "
+fncode: f_scan_delim_quick(s)
+    $call set_delim, s
+    s++
+    ts_orig = s
+    tn_level = 1
+    $while *s
+        $if *s=='\\'
+            s++
+        $elif *s==c_end
+            tn_level--
+            $if tn_level==0
+                break
+        $elif *s==c_begin
+            tn_level++
+        s++
+    $if *s
+        # s @ c_end
+        return s
+    $else
+        return NULL
+
 #----------------------------------------------- 
 # Strings can span blanks and lines, need buffer
 fncode: f_scan_delim(s, char** p_str, pn_len)
-    $call set_delim
-    $call quick_scan
+    ts_quick = f_scan_delim_quick(s)
+    $if ts_quick
+        *p_str = s+1
+        *pn_len = ts_quick-s-1
+        return ts_quick+1
+    $call set_delim, s
+    s++
     $call scan_loop
     # ------------------
-    subcode: set_delim
-        c_begin = *s++ # ', ", `
-        $call mark, (, )
-        $call mark, [, ]
-        $call mark, {, }
-        $else
-            c_end = c_begin
-
-        subcode: mark(a, b)
-            $case c_begin=='$(a)'
-                c_end ='$(b)'
-
-    subcode: quick_scan
-        ts_orig = s
-        tn_level = 1
-        $while *s
-            $if *s=='\\'
-                s++
-            $elif *s==c_end
-                tn_level--
-                $if tn_level==0
-                    break
-            $elif *s==c_begin
-                tn_level++
-            s++
-        $if *s
-            *p_str = ts_orig
-            *pn_len = s-ts_orig
-            s++
-            return s
-        $else
-            # need full scan
-
     subcode: scan_loop
         b_esc=0
         tn_level=1
+        # ref below, copies s into d
         &call src_scan_loop
             $if b_esc 
                 b_esc=0
@@ -155,6 +159,20 @@ fncode: f_scan_delim(s, char** p_str, pn_len)
                     tn_level--
 
             *d++ = *s++
+
+# ---------------------------
+subcode: set_delim(s)
+    c_begin = *$(s) # ', ", `
+    $call mark, (, )
+    $call mark, [, ]
+    $call mark, {, }
+    $call mark, <, >
+    $else
+        c_end = c_begin
+
+    subcode: mark(a, b)
+        $case c_begin=='$(a)'
+            c_end ='$(b)'
 
 #----------------------------------------------- 
 subcode: src_scan_loop

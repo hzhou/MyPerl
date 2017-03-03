@@ -1,4 +1,4 @@
-subcode: error(msg)
+subcode: error(@msg)
     $print $(msg)
     $(if:in_perl_parse)
         dump_parse_stack(stack, i_top, cur, s)
@@ -6,7 +6,7 @@ subcode: error(msg)
 
 subcode: assert(@cond)
     $if !($(cond))
-        $print $(cond)
+        $print assert error: ! ($(cond))
         exit(0)
 
 fncode: dump_parse_stack(struct TOK* stack, i_top, struct TOK cur, s)
@@ -18,6 +18,8 @@ fncode: dump_parse_stack(struct TOK* stack, i_top, struct TOK cur, s)
             $print "T_BOC%c, -", $(v).n
         $elif $(t) == T_EOC
             $print "T_EOC%c, -", $(v).n
+        $elif $(t) == T_ATOM
+            $print "[%s], -", get_OP_name($(v).op->type)
         $else
             $print "%s, -", get_T_name($(t))
     $print "cur: %s", get_T_name(cur.type)

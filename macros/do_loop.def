@@ -10,6 +10,7 @@ subcode:: parse_keyword_other
             $call new_op, op, OP_$(w), 0
             $call set_cur, T_BOS, op
             $call cv_begin
+            cv_cur->flag = CVf_loop
 
 subcode:: reduce_statement_cv2
     $case $(T)==OP_while
@@ -51,10 +52,10 @@ subcode:: reduce_statement_cv2
             $call new_op2, op, OP_block, $(N), op_list
 
         subcode: new_op_loop_goto(i)
-            $call new_op, op_goto, OP_goto, $(i)
+            $call new_op, op_goto, OP_GOTO, $(i)
 
         subcode: new_op_loop_cond(N)
-            $call new_op, op_break, OP_goto, $(N)
+            $call new_op, op_break, OP_GOTO, $(N)
             op_cond=f_new_op(OP_IF_NO,$(cond),op_break)
 
     subcode: wrap_scope

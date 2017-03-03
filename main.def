@@ -4,40 +4,47 @@ include: macros/sv.def
 include: macros/op.def
 
 include: macros/sv_string.def
+include: macros/init.def
 
 include: macros/stash.def
+include: macros/scope.def
 include: macros/cv.def
 include: macros/cv_run.def
 include: macros/registers.def
 include: macros/heap.def
-include: macros/global.def
+include: macros/copy_on_write.def
+include: macros/package.def
+
 include: macros/parse.def
 include: macros/eval_op.def
 
 include: macros/do_convert.def
 include: macros/do_bin_ops.def
-include: macros/do_print.def
+include: macros/do_functions.def # buiit-ins
 include: macros/do_variables.def
 include: macros/do_sub.def
 include: macros/do_switch.def
 include: macros/do_loop.def
 
+include: macros/do_print.def
+include: macros/do_join.def
+include: macros/do_stdio.def
+include: macros/do_regex.def
+
 include: macros/parse_extra.def
 include: macros/debug.def
 
-macros:
-    debug: 1
-
 page: myperl, basic_frame
+    $call @perl_init # sets up globals
+
     $(set:f=tests/t.pl)
-    file_in = fopen("$(f)", "r")
-    $if !file_in
-        croak("Failed to open $(f)")
-
-    cv_main = perl_parse(NULL, file_in)
-
-    $call run_init
-    run_cv(cv_main, 0, 0)
+    &call open_r, "$(f)"
+        &call compile
+            $call new_package, "::"
+            cv_main = perl_parse(NULL, file_in)
+    $call @load_modules
+    stash_global = g_stashes[1]
+    $call run, cv_main
 
 fncode: croak(s_msg)
     fprintf(stderr, "%s\n", s_msg)

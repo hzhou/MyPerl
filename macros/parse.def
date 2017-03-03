@@ -11,6 +11,7 @@ include: macros/parse_char.def
 include: macros/parse_keyword.def
 include: macros/parse_number.def
 include: macros/parse_string.def
+include: macros/parse_word.def
 include: macros/parse_var.def
 include: macros/parse_bareword.def
 
@@ -93,26 +94,8 @@ fncode: perl_parse(s_in, file_in)
 
 #----------------------------------------------- 
 subcode: match
-    # ref: parse_number/string/var... use grep
+    # ref: parse_number/string/var/word
     $call @parse_match_cases
-    $elif isword(*s)
-        $call @match_v_string
-        s2 = s
-        s = f_scan_word(s)
-        n = (int)(s-s2)
-        tn_word = my_word(s2, n)
-        $if !tn_word
-            s = f_skip_simple_spaces(s)
-            $call @parse_bareword
-            $call error, "bareword"
-        $else
-            # first, operator and built-in functions
-            $call @parse_keyword_cases
-            # next,  statement keywords
-            $call @parse_keyword_other
-            $else
-                $call error, "unsupported keyword $s2"
-        break
     $elif *s=~[({\[]
         $call set_cur, T_BOC, *s
         s++
@@ -139,6 +122,7 @@ subcode: shift_boc
             tb_cv=0
         $if tb_cv
             $call cv_begin
+            $call @set_cv_flags
 
 #----------------------------------------------- 
 subcode: check_eoc_match(b,e)

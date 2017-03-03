@@ -18,8 +18,7 @@ subcode: _autoload
 subcode: debug_cv_begin
     cv_cur->debug = n_debug
     $if n_debug
-        $print >>>> cv begin ----
-        $dump i_local
+        $print >>>> cv begin
 
 subcode: debug_cv_close
     $if n_debug
@@ -29,17 +28,17 @@ subcode: debug_cv_close
 
     subcode: debug_dump
         $print <<<< cv close ----
-        $dump lex_stack_len, i_local, cv->n_vars
+        $dump lex_stack_len, cv->n_vars
 
 #-- runtime ----------
 subcode: debug_run_cv_enter
-    $if $(cv)->debug
+    $if cv->debug
         n_debug_save = n_debug
-        n_debug = $(cv)->debug
-        $print "---- enter_scope: 0 global vars, %d local vars ", $(cv)->n_vars
+        n_debug = cv->debug
+        $print "---- enter_scope: 0 global vars, %d local vars ", cv->n_vars
 
 subcode: debug_run_cv_leave
-    $if $(cv)->debug
+    $if cv->debug
         n_debug = n_debug_save
         $print "---- leave_scope"
 
@@ -61,7 +60,7 @@ subcode: debug_reduce_eoc
     $if n_debug
         $call print_reduce_level
         $print "reduce_eoc %c - %c", $(op_boc), $(op_eoc)
-        $if $(block)->left.op
+        $if $(block)->type == OP_LIST
             $print " %p [block: %s -> %s, %s]", $(block), get_OP_name($(block)->type), get_OP_name($(block)->left.op->type), get_OP_name($(block)->right.op->type)
 
 #----------------------------------------------- 
@@ -81,10 +80,24 @@ subcode: debug_cv_run_op_block
         $if n_svreg!=0
             $print "    reg: $n_svreg"
 
-#----------------------------------------------- 
-subcode: debug_find_var(s)
-    $if n_debug
-        $print "find %c var -> %d", *$(s), i_var
+#---- var, scope -------------------------------- 
+/*
+subcode: debug_add_global
+    # $print "add_global %s -> %d stash: %p", $(name), $(i_var), stash_global
+
+subcode: debug_add_local
+    # $print "add_local %s -> %d stash: %p", $(name), $(i_var), stash_local
+
+subcode: debug_find_global
+    # $print "find_global %s stash: %p -> %d", s_name, stash, tn_var
+
+subcode: debug_find_local
+    $if tn_var
+        # $print "find_local %s stash: %p -> %d", s_name, stash, tn_var
+subcode: debug_file_scope
+    $print "file_scope: -> $cur_file_scope, %p[%d]", g_local, g_local_len
+*/
+
 #----------------------------------------------- 
 subcode: debug_AV_push
     # $print "AV_push %p [%d %d]", av, av->i_0, av->i_n
@@ -95,3 +108,29 @@ subcode: debug_AV_push
 subcode: debug_AV_free
     $if n_debug
         $print "AV_free %p", av
+
+#----------------------------------------------- 
+fncode: dump_sv(sv, s_msg)
+    $print "$s_msg-"
+    $if !sv
+        $print (null)
+    $elif sv->type==SVt_int
+        $print "<%d>", sv->value.n
+    $elif sv->type==SVt_float
+        $print "<%g>", sv->value.f
+    $elif sv->type==SVt_string
+        &call with_sv_string, sv
+            printf("<%.*s>\n", $(n), $(s))
+    $elif sv->type==SVt_av
+        av = $(sv_av:sv)
+        $print "<AV:%p:%d>", av, av->i_n-av->i_0
+    $else
+        $print <sv>
+
+#----------------------------------------------- 
+subcode: debug_pcre
+    $map check, NOMATCH, NULL, BADOPTION, BADMAGIC, UNKNOWN_NODE, NOMEMORY
+
+    subcode: check(E)
+        $case n_regex_caps == PCRE_ERROR_$(E)
+            $print "PCRE_ERROR_$(E)"

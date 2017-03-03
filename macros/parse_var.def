@@ -1,21 +1,10 @@
-#-- ref: stash.def, cv.def
+#-- ref: stash.def, scope.def, cv.def
 macros:
     MAX_IDENT: 256
 
-#----------------------------------------------- 
-#- note: index start at 1
-subcode: add_local(i_var, name, len)
-    i_local++
-    $(i_var) = i_local
-    stash_local.$set $(name), $(len), i_local
-    # $print "add_local: %c i_var = %d",*$(name), i_local
+macros:
+    KEY_OTHER:: my,our,local
 
-subcode: add_global(i_var, name, len)
-    i_global++
-    $(i_var) = i_global
-    stash_global.$set $(name), $(len), i_global
-
-#----------------------------------------------- 
 subcode:: parse_keyword_other
     $elif tn_word == WORD_my || tn_word==WORD_our
         $local n_in_my
@@ -31,101 +20,94 @@ subcode:: reduce_prefix_cases
         char_sigil = stack[-2].value.n
         $call new_op2, op, OP_SIGIL, char_sigil, $(term)
         break
-
     
+#- note, $#array not supported   
 subcode:: parse_match_cases
     $elif $(is_op:$(type:1)) && *s=~[$@%]
         char_sigil=*s++
-        $if *s=='#' && char_sigil=='$'
-            char_sigil=*s++
-        $if isword1st(*s)
-            $call match_variable
-        $elif *s=~[${]
+        op = f_parse_var_special(char_sigil, s)
+        $if op
+            cur.type=T_ATOM
+            cur.value.op = op
+            break
+        $else
             $call set_cur, T_SIGIL, char_sigil
+            break
+
+# ----------------------
+subcode:: parse_bareword
+    $case $(type:1)==T_SIGIL
+        $if has_package
+            $if n_in_my
+                $call error, "package var in my/our"
+            $call bareword_to_string
+            break
         $else
-            $call error, "Invalid char after sigil"
-        break
+            char_sigil = $(value:1).n
+            $call match_variable
+            break
 
-subcode: match_variable
-    $local ts_var_buf[$(MAX_IDENT)]
-    $(set:s=ts_var_buf)
-    has_colon=0
-    $call scan_variable
-    $call set_sigil
-    $if has_colon
-        # $PKG::var
-        $if n_in_my
-            $call error, "package var in my/our"
-        $call @check_global, package
-    $else
-        # $print ... var $(s), n_in_my=$n_in_my
-        $if n_in_my==WORD_our
-            i_var = find_global($(s))
-            $if !i_var
-                $call add_global, i_var, $(s), n+1
-            cur.type=T_ATOM
-            $call op_var, OUR, i_var
-        $elif n_in_my==WORD_my
-            i_var = find_local($(s))
-            $call @debug_find_var, $(s)
-            $if !i_var
-                $call add_local, i_var, $(s), n+1
-            cur.type=T_ATOM
-            $call op_var, MY, i_var
-        $elif n_in_my==0
-            i_var = find_local($(s))
-            $if i_var
-                cur.type=T_ATOM
-                $call op_var, LOCAL, i_var
-            $else
-                $call check_global, undeclared
-        $else
-            $call error, "can't happen"
-
-    subcode: check_global(type)
-        i_var = find_global($(s))
-        $if i_var
-            cur.type=T_ATOM
-            $call op_var, GLOBAL, i_var
-        $else
-            $(if:type=package)
-                $call error, "package var not found"
-            $(else)
-                $call die, "undeclared variable %s", $(s)
-
-    # --------------------
-    subcode: scan_variable
-        s2=s
-        $while 1
-            $if isword(*s)
-                s++
-            $elif s[0]==':' && s[1]==':' && isword1st(s[2])
-                s+=3
-                has_colon=1
-            $else
-                break
-        n=(int)(s-s2)
-
+    subcode: match_variable
+        $local ts_var_buf[$(MAX_IDENT)]
+        $(set:s=ts_var_buf)
+        $call set_sigil
         memcpy($(s)+1, s2, n)
         $(s)[n+1]='\0'
 
-    subcode: op_var(type, i)
-        $call new_op2, cur.value.op, OP_$(type), char_sigil, $(i)
-
-    subcode: set_sigil
-        $if char_sigil=='#'
-            $(s)[0]='@'
-        $elif char_sigil=='$'
-            s=f_skip_simple_spaces(s)
-            $if *s=='{'
-                $(s)[0]='%'
-            $elif *s=='['
-                $(s)[0]='@'
-            $else
-                $(s)[0]='$'
+        # $print ... var $(s), n_in_my=$n_in_my
+        $if n_in_my==0
+            $call check_var
         $else
-            $(s)[0]=char_sigil
+            $if n_in_my==WORD_our
+                $call check_var_our
+            $elif n_in_my==WORD_my
+                $call check_var_my
 
+        # -----------------------
+        subcode: set_var(type, i)
+            i_top-=1
+            cur.type=T_ATOM
+            $call new_op2, cur.value.op, OP_$(type), char_sigil, $(i)
+        # ------------------
+        subcode: set_sigil
+            $if char_sigil=='$'
+                s=f_skip_simple_spaces(s)
+                $if *s=='{'
+                    $(s)[0]='%'
+                $elif *s=='['
+                    $(s)[0]='@'
+                $else
+                    $(s)[0]='$'
+            $else
+                $(s)[0]=char_sigil
+        # -----------------
+        subcode: check_var
+            i_var = find_local($(s))
+            $if i_var
+                $call set_var, LOCAL, i_var
+            $else
+                $call check_global, undeclared
+
+        subcode: check_var_our
+            i_var = find_global($(s))
+            $if !i_var
+                $call add_global, i_var, $(s), n+1
+            $call set_var, GLOBAL, i_var
+
+        subcode: check_var_my
+            # each my creates new var
+            $call add_local, i_var, $(s), n+1
+            $call set_var, MY, i_var
+
+        subcode: check_global(type)
+            i_var = find_global($(s))
+            $if i_var
+                $call set_var, GLOBAL, i_var
+            $else
+                $(if:type=package)
+                    $call error, "package var not found"
+                $(else)
+                    $call error, "undeclared variable"
 
 #-------------------------
 subcode:: define_ops
@@ -166,21 +148,138 @@ subcode: check_reduce_var_index
         cur.type=0
         break
 
-#----- lexical stash -------------------
-#-- stash is HV except values are int
-#-- ref: cv.def - cv_begin/cv_close
-fncode: find_local(s_name)
-    $local stash
-    stash = stash_local
-    i = lex_stack_len
+#----------------------------------------------- 
+# this is for var inside string interpolation
+#    so limited to static resolvable ones.
+fncode: f_parse_var(s, n)
+    $if s[1]=='{'
+        # ${...}
+        s[1]=s[0]
+        return f_parse_var(s+1, n-3)
+
+    $if s[n-1]!='}' && s[n-1]!=']'
+        # no indexing
+        $if s[1]!='$'
+            # simple case
+            return f_parse_var_simple(s, n)
+        $else
+            # $$... or @$...: recurse
+            $call op_sigil, s[0], s+1, n-1
+            return op
+    # -------------------------------
+    # -- ends with } or ]
+    s_sigil = s++
+    $while *s=='$'
+        s++
+    # perl allows for abritrary identifier
+    #     I don't see how that is beneficial ...
+    $while isword(*s)
+        s++
+    # -- s is at start of index (or end)
+    $if *s_sigil=='$'
+        $if *s=='['
+            char_sigil = '@'
+        $elif *s=='{'
+            char_sigil = '%'
+        $else
+            char_sigil = '$'
+    $else # @{var}
+        char_sigil = '@'
+    # -- handle principle
+    s_index = s
+    s = s_sigil
+    tn_len = (int)(s_index - s_sigil)
+    $if s[1]!='$'
+        op = f_parse_var_simple(s, tn_len)
+    $else
+        $call op_sigil, char_sigil, s+1, tn_len-1
+    # -- handle index(es)
+    s = s_index
     $while 1
-        tn_var = f_stash_get(stash, s_name, 0)
-        $if tn_var
-            return tn_var
-        i--
-        $if i>0
-            stash = lex_stack[i]->stash
+        $(set:bracket=$1=='[' || $1=='{')
+        $if $(bracket:*s)
+            $call op_index, s
+        $elif s[0]=='-'&&s[1]=='>' && ($(bracket:s[2]))
+            $call op_index, s+2
         $else
             break
-    return 0
+    return op
 
+    # -------------------------
+    subcode: op_sigil(sigil, s, n)
+        op_1 = f_parse_var($(s), $(n))
+        $call new_op2, op, OP_SIGIL, $(sigil), op_1
+
+    subcode: op_index(s)
+        ts_begin = $(s)
+        ts_end = f_scan_delim_quick(ts_begin)
+        tn_len = (int)(ts_end - ts_begin)+1
+        $if ts_begin[1]=='$'
+            # variable index
+            op_1 = f_parse_var(ts_begin+1, tn_len)
+        $else
+            # constant index
+            $if ts_begin[1]=='\'' && ts_end[-1]=='\''
+                sv = sv_from_s(ts_begin+2, tn_len-2)
+            $else
+                sv = sv_from_s(ts_begin+1, tn_len)
+            $call new_op, op_1, OP_CONST, sv
+        $if *ts_begin=='['
+            tn_op = OP_ARRAY_INDEX
+        $else
+            tn_op = OP_HASH_INDEX
+        op_var = op
+        $call new_op2, op, tn_op, op_var, op_1
+        s = ts_end+1
+
+#------------------------------ 
+# simplest var form: $var or @var
+fncode: f_parse_var_simple(s, n)
+    op = f_parse_var_special(s[0], s+1)
+    $if op
+        return op
+
+    &call terminate_s
+        i_var = find_local(s)
+        $if i_var
+            $call set_var, LOCAL
+        $else
+            i_var = find_global(s)
+            $if i_var 
+                $call set_var, GLOBAL
+            $else
+                $call die, "string: var not found $s"
+    return op
+    # ------------------
+    subcode: terminate_s
+        ts_orig = s
+        char_end = s[n]
+        s[n] = '\0'
+
+        BLOCK
+
+        ts_orig[n] = char_end
+
+    subcode: set_var(type)
+        $call new_op2, op, OP_$(type), *s, i_var
+
+    subcode: return_global(I)
+        $call new_op2, op, OP_GLOBAL, *s, $(I)
+        return op
+
+#----------------------------------------------- 
+fncode: f_parse_var_special(char_sigil, s)
+    op = NULL
+    $if char_sigil=='$'
+        $if s[1]=='['
+            char_sigil='@'
+        $elif s[1]=='%'
+            char_sigil='%'
+
+    $if char_sigil=='$'
+        $call @match_special_sv
+    $elif char_sigil =='@'
+        $call @match_special_av
+    $elif char_sigil =='%'
+        $call @match_special_hv
+    return op

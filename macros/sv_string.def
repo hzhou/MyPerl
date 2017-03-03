@@ -1,3 +1,10 @@
+subcode:: sv_prerequisite
+    $struct(STRING) s, n, size, int pos
+
+macros:
+    SV_UNION:: struct STRING S
+    SV_TYPES:: SVt_string
+
 #----------------------------------------------- 
 subcode: if_sv_string(sv)
     $if $(sv) && $(sv)->type==SVt_string
@@ -10,32 +17,38 @@ subcode: with_sv_string(sv)
     $(set:size=$(sv)->value.S.size)
     BLOCK
 
+# -----------------------------
 subcode: sv_set_s(sv, s, n, size)
-    $(sv)->type = SVt_string
+    $call sv_init, $(sv), SVt_string
     $(sv)->value.S.s=$(s)
     $(sv)->value.S.n=$(n)
-    $(sv)->value.S.size=$(size)
-
-subcode: sv_string_init(sv)
-    $call sv_set_s, $(sv), NULL, 0, 0
-
-# copy on write: s!=0, n>0, and size=0
-subcode:: sv_on_write(sv)
-    &call if_sv_string, $(sv)
-        $if $(s) && $(size)==0
-            $my s, n
-            n = $(n)*5/3+20
-            $allocate(n) s
-            memcpy(s, $(s), $(n))
-            $(size)=n
+    $(if:size!=_)
+        $(sv)->value.S.size=$(size)
 
 subcode:: sv_ref_release
     $case $(T:string)
         &call with_sv_string, sv
             $if $(size)>0
+                $print "free string sv%p - %p [%d]",sv, $(s), $(size)
                 free($(s))
 
+# ref: do_bin_ops.def -- opeq
+fncode: SV_string_on_write(sv)
+    $call assert, sv->type == SVt_string
+    &call sv_on_write, sv
+        &call with_sv_string, sv
+            # $print "SV_string_on_write: sv%p %p[%d]", sv, $(s), $(n)
+            s=$(s)
+            n=$(n)
+            n2 = n+20 # allow some room for growth
+            $(s) = malloc(n2)
+            memcpy($(s), s, n)
+            $(n) = n
+            $(size)=n2
+            sv->value.S.pos=0
+
 #----------------------------------------------- 
+#- strdup, orther wise use subcode: sv_set_s
 fncode: sv_from_s(s, n)
     $if n==0
         n=strlen(s)
@@ -62,12 +75,14 @@ fncode: SV_resize(sv, n)
     $if n>$(S).size
         $(S).s = realloc($(S).s, n)
         $(S).size = n
+        # $print "SV_resize sv%p - %p - %d", sv, $(S).s, $(S).size
 
 fncode: SV_append_sv(sv, sv_b)
     sv_s_b = do_string(sv_b)
-    &call with_sv_string, sv_s_b
-        SV_append_s(sv, $(s), $(n))
-    $call ret_svreg, sv_s_b
+    $if sv_s_b
+        &call with_sv_string, sv_s_b
+            SV_append_s(sv, $(s), $(n))
+        $call ret_svreg, sv_s_b
 
 fncode: SV_append_s(sv, s, n)
     $call assert, sv->type==SVt_string

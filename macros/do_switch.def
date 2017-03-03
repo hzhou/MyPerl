@@ -57,13 +57,13 @@ subcode:: eval_op_cases
             n--
 
         $for i=0:n:2
-            sv_cond = eval_op(&op_list[i], $(CTX_BOOL))
+            sv_cond = eval_op(&op_list[i], $(CTX_SCALAR))
             tn_bool = do_bool(sv_cond)
             $call ret_svreg, sv_cond
             $if tn_bool
-                return eval_op(&op_list[i+1],$(CTX))
+                return eval_op(&op_list[i+1],$(CTX_VOID))
         $if i_else
-            return eval_op(&op_list[i_else],$(CTX))
+            return eval_op(&op_list[i_else],$(CTX_VOID))
         return NULL
 #----------------------------------------------- 
 subcode:: define_ops
@@ -76,10 +76,10 @@ subcode:: eval_op_cases
         $call if_yes_no, !tn_bool
 
     subcode: if_yes_no(cond)
-        sv_cond = eval_op(op->left.op, $(CTX_BOOL))
+        sv_cond = eval_op(op->left.op, $(CTX_SCALAR))
         tn_bool = do_bool(sv_cond)
         $call ret_svreg, sv_cond
         $if $(cond)
-            return eval_op(op->right.op, $(CTX))
+            return eval_op(op->right.op, $(CTX_VOID))
         return NULL
 

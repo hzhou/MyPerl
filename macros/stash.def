@@ -14,11 +14,11 @@ fncode: stash_new
     stash->n_val_size = sizeof(int)
     return stash
 
-fncode: f_stash_get(stash, s, int len)
+fncode: f_stash_get(stash, s, n)
     $return_type int
     $if stash->n_size==0
         return 0
-    k=f_strhash_lookup(stash, (unsigned char*)s, len)
+    k=f_strhash_lookup(stash, (unsigned char*)s, n)
     $if stash->p_exist[k]
         return stash->p_val[k]
     $else

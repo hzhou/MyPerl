@@ -10,10 +10,14 @@ subcode:: parse_keyword_other
         $call set_cur, T_BOS, op
 
 subcode:: parse_bareword
-    $case $(type:1)==T_BOS && $(value:1).op->type==OP_SUB
+    $case tn_bos_op == OP_SUB
         $call bareword_subname
         $(value:1).op->left.sv = sv
         goto lexer
+
+subcode:: set_cv_flags
+    $if $(type:1)==T_BOS && $(value:1).op->type==OP_SUB
+        cv_cur->flag = CVf_sub
 
 subcode:: reduce_statement_cv1
     $case $(T) == OP_SUB
@@ -24,13 +28,15 @@ subcode:: reduce_statement_cv1
         goto lexer
 
 # -----
-subcode: _autoload
+subcode:: perl_init
     $global darray subs: struct CV*
+    subs.$grow 10
+    subs_len=1 # start at index 1 (simplify test)
 
 subcode: add_sub(name, len, cv)
     stash_global.$set $(name), $(len), subs_len
     subs.$push $(cv)
-    printf("add sub %.*s -- %d\n", $(len),$(name),subs_len-1)
+    # printf("add sub %.*s -- %d\n", $(len),$(name),subs_len-1)
 
 #----------------------------------------------- 
 subcode:: define_ops
@@ -40,6 +46,7 @@ subcode:: parse_bareword
     $case *s=='('
         $call bareword_subname
         $call new_op2, op, OP_Fcall, sv, 0
+        # reduce ref: parse_reduce.def
         cur.type=T_UNARY
         cur.value.op = op
         break
@@ -49,12 +56,6 @@ subcode:: parse_bareword
         SV_append_s(sv, "&", 1)
         SV_append_s(sv, s2, n)
 
-subcode:: reduce_prefix_cases
-    case T_UNARY:
-        op = $(op_op)
-        op->right.op = $(term)
-        break
-
 #----------------------------------------------- 
 subcode:: eval_op_cases
     case OP_Fcall:
@@ -62,8 +63,130 @@ subcode:: eval_op_cases
         &call with_sv_string, sv_name
             $(s)[$(n)]='\0'
             i_sub = find_global($(s))
-            printf("Calling %.*s -- %d \n", $(n), $(s), i_sub)
-        $if i_sub>=0
+            # printf("Calling %.*s -- %d \n", $(n), $(s), i_sub)
+        $if i_sub
             cv = subs[i_sub]
-            return run_cv(cv, $(CTX))
+            sv_arg = eval_op(op->right.op, $(CTX_LIST))
+            $call run_sub
+        $else
+            $call die, "Undefined subroutine %s", sv_name->value.S.s
         return NULL
+
+#---------------
+subcode:: universal_vars
+    $call add_universal, @ARG # @_
+
+subcode:: match_special_av
+    $case s[0]=='_' && !isword(s[1])
+        s++
+        $call new_op2, op, OP_GLOBAL, '@', I_at_ARG
+
+#---------------
+subcode: run_sub
+    &call check_file_scope
+        &call check_cv_scope
+            $call setup_args, av_arg
+            &call set_I_at_ARG, av_arg
+                sv_ret = run_cv(cv, $(CTX))
+                $call ret_svreg, sv_ret
+                $call get_returns
+    return sv_ret
+
+    # ----------------------------------
+    subcode: check_file_scope
+        $(set:da=$1,$1_len,$1_size)
+        i_file_scope_save=-1
+        $if cv->i_file != cur_file_scope
+            i_file_scope_save = cur_file_scope
+            cur_file_scope = cv->i_file
+            $(da:g_local) = g_file_scopes[cur_file_scope]
+            $call @debug_file_scope
+
+        &call check_cv_scope
+            BLOCK
+
+        $if i_file_scope_save>=0
+            cur_file_scope = i_file_scope_save
+            $(da:g_local) = g_file_scopes[cur_file_scope]
+            $call @debug_file_scope
+
+    subcode: check_cv_scope
+        n_save = 0
+        $if cv->i_start + cv->n_vars > g_local_len
+            n_save = g_local_len - cv->i_start
+        $else
+            n_save = cv->n_vars
+        # $print "save cv_scope @%d + %d",cv->i_start,n_save
+        $if n_save > 0
+            sv_local = g_local+cv->i_start
+            $allocate(n_save) sv_save
+            memcpy(sv_save,sv_local, n_save*$(sv_size))
+        BLOCK
+        $if n_save
+            memcpy(sv_local,sv_save, n_save*$(sv_size))
+
+    # ---------------------
+    subcode: set_I_at_ARG(av)
+        av_save = g_global[I_at_ARG].value.p
+        g_global[I_at_ARG].value.p = av_arg
+        BLOCK
+
+        g_global[I_at_ARG].value.p = av_save
+
+    subcode: setup_args(av)
+        $if !sv_arg
+            $(av) = NULL
+        $elif sv_arg->type==SVt_av
+            $(av) = $(sv_av:sv_arg)
+            sv_arg->type=0
+            $call ret_svreg_borrow, sv_arg
+        $else
+            $(av) = AV_new()
+            AV_push($(av), sv_arg)
+            $call ret_svreg_borrow, sv_arg
+
+    # ---------------------
+    subcode: get_returns
+        av_ret = (struct AV*)g_global[I_at_ARG].value.p
+        $if av_ret==av_arg && av_arg
+            AV_free(av_arg)
+            av_ret = NULL
+
+        $if av_ret
+            $if $(IS_LIST)
+                sv_ret = get_svreg(SVt_av)
+                $call sv_set_p, sv_ret, av_ret, _
+            $else
+                sv_ret = AV_shift(av_ret)
+                SV_refinc(sv_ret)
+                AV_free(av)
+            # dump_sv(sv_ret, "sub return: ")
+        $else
+            sv_ret = NULL
+
+#----------------------------------------------- 
+subcode:: eval_op_cases
+    case OP_RETURN:
+        # simply clear @_ and put returns there
+        $(set:av_ret=g_global[I_at_ARG].value.p)
+        av_ret = (struct AV*)$(av_ret)
+        $if av_ret
+            AV_free(av_ret)
+        sv_ret = eval_op(op->right.op, $(CTX_LIST))
+        $if !sv_ret
+            $(av_ret)=NULL
+        $elif sv_ret->type==SVt_av
+            $(av_ret)=$(sv_av:sv_ret)
+            $call ret_svreg_borrow, sv_ret
+        $else
+            av_ret = AV_new()
+            AV_push(av_ret, sv_ret)
+            $(av_ret) = av_ret
+        # set sv_ret to OP_GOTO 
+        sv_ret=get_svreg(SVt_undef)
+        cv = op->left.cv
+        $call sv_set_goto, sv_ret, cv, GOTO_return
+        return sv_ret
+
+
+

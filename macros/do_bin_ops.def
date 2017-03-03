@@ -57,8 +57,8 @@ macros:
 
 subcode:: eval_op_group
     $if $(op_is_bin)
-        sv_a = eval_op($(L), $(CTX))
-        sv_b = eval_op($(R), $(CTX))
+        sv_a = eval_op($(L), $(CTX_SCALAR))
+        sv_b = eval_op($(R), $(CTX_SCALAR))
         sv=NULL
         $if $(op_is_rel)
             $if $(op_is_string)
@@ -78,7 +78,7 @@ subcode:: eval_op_group
         return sv
     $elif $(op_is_opeq)
         sv_a = eval_op($(L), $(CTX_LEFT))
-        sv_b = eval_op($(R), $(CTX))
+        sv_b = eval_op($(R), $(CTX_SCALAR))
         $if $(op_is_string)
             $call do_opeq_string
         $elif $(op_is_num)
@@ -90,18 +90,38 @@ subcode:: eval_op_group
 
 #----------------------------------------------- 
 subcode: do_bin_string
-    sv = get_svreg()
-    $call sv_string_init, sv
     $if $(opT:$(sym:.))
-        SV_append_sv(sv, sv_a)
+        $call take_sv_a_string
         SV_append_sv(sv, sv_b)
     $elif $(opT:x)
+        sv = get_svreg(SVt_string)
         n = do_int(sv_b)
-        $for i=0:n
-            SV_append_sv(sv, sv_a)
+        $if sv_a->type!=SVt_string
+            sv_s_a = do_string(sv_a)
+            $call ret_svreg, sv_a
+            sv_a=sv_s_a
+        s_a = sv_a->value.S.s
+        n_a = sv_a->value.S.n
+        &call with_sv_string, sv
+            $(n) = n_a*n
+            SV_resize(sv, $(n)+20)
+            s = $(s)
+            $for i=0:n
+                memcpy(s, s_a, n_a)
+                s+=n_a
+
+    subcode: take_sv_a_string
+        $call assert, $(sv_is_reg:sv_a)
+        $if sv_a->type==SVt_string
+            sv=sv_a
+            sv_a=NULL
+        $else
+            sv = do_string(sv_a)
+        SV_string_on_write(sv)
 
 subcode: do_opeq_string
     SV_to_string(sv_a)
+    SV_string_on_write(sv_a)
     $if $(opT:$(sym:.=))
         SV_append_sv(sv_a, sv_b)
     # $call do_xEq
@@ -146,7 +166,7 @@ subcode: do_bin_num
                 SV_to_int(sv_a)
             $call sv_set_$(f), sv_a, $(f)1
         $(else)
-            sv = get_svreg()
+            sv = get_svreg(SVt_undef)
             $call sv_set_$(f), sv, $(f)1
             goto done_bin
         
@@ -174,7 +194,7 @@ subcode: do_rel_num
         switch(op->type){
             $map bool_case, ==,!=,<,>,<=,>=
             case OP_$(sym:<=>):
-                sv = get_svreg()
+                sv = get_svreg(SVt_undef)
                 $if $(a)==$(b)
                     $call sv_set_n, sv, 0
                 $elif $(a)<$(b)
@@ -190,10 +210,17 @@ subcode: do_rel_num
 subcode: do_rel_string
     sv_s_a = do_string(sv_a)
     sv_s_b = do_string(sv_b)
-    $(set:S=sv_s_$1->value.S)
-    n= $(S:a).n
-    n ?<= $(S:b).n
-    tn_ret = strncmp($(S:a).s, $(S:b).s, n)
+    $if !sv_s_a && !sv_s_b
+        tn_ret = 0
+    $elif !sv_s_a
+        tn_ret = -1
+    $elif !sv_s_b
+        tn_ret = 1
+    $else
+        $(set:S=sv_s_$1->value.S)
+        n= $(S:a).n
+        $call update_max, n, $(S:b).n
+        tn_ret = strncmp($(S:a).s, $(S:b).s, n)
     $map ret_svreg, sv_s_a, sv_s_b
 
     switch (op->type){
@@ -204,7 +231,7 @@ subcode: do_rel_string
         $call bool_case, le, tn_ret<=0
         $call bool_case, ge, tn_ret>=0
         case OP_cmp:
-            sv = get_svreg()
+            sv = get_svreg(SVt_undef)
             $call sv_set_n, sv, tn_ret
     }
 
@@ -213,7 +240,28 @@ subcode: do_rel_string
             sv = $(cond)?sv_TRUE:sv_FALSE
             break
 
+#---- or, and, ||, && --------------------------- 
+subcode:: define_ops
+    $map define_op, or, and
 
+subcode:: reduce_binary_cases
+    $call BIN, $(sym:||), OP_or
+    $call BIN, $(sym:&&), OP_and
+    $map BIN_op, or, and
 
-
+subcode:: eval_op_cases
+    case OP_or:
+        sv_ret = eval_op($(L), $(CTX_SCALAR))
+        $if do_bool(sv_ret)
+            return sv_ret
+        $else
+            $call ret_svreg, sv_ret
+            return eval_op($(R), $(CTX_SCALAR))
+    case OP_and:
+        sv_ret = eval_op($(L), $(CTX_SCALAR))
+        $if !do_bool(sv_ret)
+            return sv_ret
+        $else
+            $call ret_svreg, sv_ret
+            return eval_op($(R), $(CTX_SCALAR))
 

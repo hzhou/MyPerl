@@ -1,20 +1,17 @@
 # scalar context, sv has to be register here
 fncode: do_string(sv)
     $(set:T=sv->type==SVt_$1)
-    $if !sv
+    $if !sv || $(T:undef)
         return NULL
     $if $(T:string)
-        return sv
+        return SV_copy(NULL, sv)
 
     $call get_string_reg, sv_r
 
-    $if $(T:string)
-        &call with_sv_string, sv
-            $call sv_set_s, sv_r, $(s), $(n), 0
-    $elif $(T:int)
+    $if $(T:int)
         SV_append_i(sv_r, sv->value.n)
     $elif $(T:float)
-        SV_append_i(sv_r, sv->value.f)
+        SV_append_f(sv_r, sv->value.f)
     $call @do_string_cases
     $else
         $call die, "do_string type [%s] not supported", get_SV_name(sv->type)
@@ -23,7 +20,7 @@ fncode: do_string(sv)
 
 fncode: do_int(sv)
     $(set:T=sv->type==SVt_$1)
-    $if !sv
+    $if !sv || $(T:undef)
         return 0
     $elif $(T:int)
         return sv->value.n
@@ -34,11 +31,11 @@ fncode: do_int(sv)
         return $(av_count:av)
     $call @do_int_cases
     $else
-        $call die, "do_int type not supported"
+        $call die, "do_int type not supported [%s]", get_SV_name(sv->type)
 
 fncode: do_float(sv)
     $(set:T=sv->type==SVt_$1)
-    $if !sv
+    $if !sv || $(T:undef)
         return 0.0
     $elif $(T:int)
         return (double)sv->value.n
@@ -68,7 +65,8 @@ fncode: do_bool(sv)
         return $(av_count:av) > 0
     $call @do_bool_cases
     $else
-        $call die, "do_int type not supported"
+        return sv->value.p !=NULL
+        # $call die, "do_bool type not supported [%s]", get_SV_name(sv->type)
 
 #----------------------------------------------- 
 #-- left context, upgrade
@@ -78,12 +76,12 @@ fncode: SV_to_string(sv)
         return
     $elif $(T:int)
         n = sv->value.n
-        $call sv_string_init, sv
+        $call sv_init, sv, SVt_string
         SV_append_i(sv, n)
         return
     $elif $(T:float)
         f = sv->value.f
-        $call sv_string_init, sv
+        $call sv_init, sv, SVt_string
         SV_append_f(sv, f)
         return
     $call @sv_to_string
@@ -115,7 +113,7 @@ fncode: SV_to_int(sv)
     $call @sv_to_int
 
 subcode: _str_release
-    sv_tmp = get_svreg()
+    sv_tmp = get_svreg(SVt_undef)
     &call with_sv_string, sv
         $call sv_set_s, sv_tmp, $(s), $(n), $(size)
     BLOCK
@@ -131,7 +129,7 @@ fncode: sv_string_float(sv)
 
 subcode: fn_string_number(n)
     # ref: macros/parse_number.def
-    sv_tmp=get_svreg()
+    sv_tmp=get_svreg(SVt_undef)
     &call with_sv_string, sv
         $(s)[$(n)]='\0'
         f_get_number($(s), sv_tmp)

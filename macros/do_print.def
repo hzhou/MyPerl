@@ -1,31 +1,39 @@
-subcode:: reduce_keyword_prefix
+macros:
+    KEY_FN_LIST:: print,printf
+    KEY_FN_LIST:: warn,die
+
+subcode:: eval_fn_cases
     case WORD_print:
-        $call new_op, op, OP_PRINT, $(term)
-        break
     case WORD_printf:
-        $call new_op, op, OP_PRINTF, $(term)
+        sv_io = AV_get(av, 0)
+        $if sv_io->type != SVt_io
+            sv_io = &g_global[I_STDOUT]
+        $else
+            AV_shift(av)
+
+        $if $(WORD:print)
+            do_print(sv_io, av)
+        $else
+            do_printf(sv_io, av)
+
+        $map ret_svreg, sv_io
+        break
+    case WORD_warn:
+    case WORD_die:
+        sv_io = &g_global[I_STDERR]
+        do_print(sv_io, av)
+        $if $(WORD:die)
+            exit(-1)
         break
 
-subcode:: define_ops
-    $map define_op, PRINT, PRINTF
-
-subcode:: eval_op_cases
-    case OP_PRINT:
-    case OP_PRINTF:
-        sv_a = eval_op($(L), $(CTX))
-        sv_b = eval_list(NULL, $(R), $(CTX))
-        av = $(sv_av:sv_b)
-        $if $(opT:PRINT)
-            do_print(sv_a, av)
-        $else
-            do_printf(sv_a, av)
-        $map ret_svreg, sv_a, sv_b
-        return NULL
+#----------------------------------------------- 
+subcode:: universal_vars
+    $call add_universal, $OFS # $,
+    # default undef
 
 #----------------------------------------------- 
 fncode: do_print(sv_io, av)
-    # $print do_print ...
-    file_out = stdout
+    file_out = (FILE*)sv_io->value.p
     &call av_each, av
         sv = $(sv)
         $if sv->type==SVt_string
@@ -43,7 +51,6 @@ fncode: do_print(sv_io, av)
             $call error, "print unsupported sv"
 
 fncode: do_printf(sv_io, av)
-    # $print do_printf ...
     file_out = stdout
     sv_fmt = AV_get(av, 0)
     &call if_sv_string, sv_fmt
@@ -66,13 +73,11 @@ fncode: do_printf(sv_io, av)
                     $call scan_fmt
 
     subcode: print_sofar(beyond)
-        $(if:beyond=0)
-            $if s>s_fmt
-                *s = '\0'
-                fputs(s_fmt, file_out)
-        $(else)
+        $if s>s_fmt
+            char_save = s[$(beyond)]
             s[$(beyond)]='\0'
             fputs(s_fmt, file_out)
+            s[$(beyond)]=char_save
 
     subcode: scan_fmt
         s++
@@ -108,63 +113,37 @@ fncode: do_printf(sv_io, av)
 
         subcode: do_fmt
             sv = AV_get(av, i_arg++)
-            sv=SV_fmt(sv, *s, 0, 0, 0)
-            $call sv_string_terminate, sv
-            fputs(sv->value.S.s, file_out)
+            sv_str = SV_fmt(sv, *s, 0, 0, 0)
+            $call sv_string_terminate, sv_str
+            fputs(sv_str->value.S.s, file_out)
+            $call ret_svreg, sv_str
 
 include: c/string_fmt.def
-
 fncode: SV_fmt(sv, char_fmt, n_width, n_prec, n_flag)
     $return_type struct SV*
     $if !sv
         $if char_fmt=='s'
-            sv = sv_from_s("", 0)
+            return sv_EMPTY
         $else
-            sv=get_sv(SVt_int)
+            sv=sv_FALSE
 
-    $if char_fmt == 's' && sv->type!=SVt_string
-        SV_to_string(sv)
-    $elif sv->type==SVt_string
-        s = sv->value.S.s
-        f_get_number(s, sv)
+    $if char_fmt=='s'
+        $if sv->type==SVt_string
+            return sv
+        $else
+            return do_string(sv)
 
     $if char_fmt=='d'
-        $if sv->type==SVt_int
-            n = sv->value.n
-        $elif sv->type==SVt_float
-            n = (int)sv->value.f
-        $else
-            n = 0
-        &call reset_str
-            $(S).s=f_string_append_int($(fstr), n)
-    $elif char_fmt == 'f'
-        $my double f
-        $if sv->type==SVt_int
-            f = sv->value.n
-        $elif sv->type==SVt_float
-            f = sv->value.f
-        $else
-            f = 0.0
-        &call reset_str
-            $(S).s=f_string_append_float($(fstr), f, 8)
-    return sv
+        n = do_int(sv)
+        $call get_string_reg, sv_ret
+        SV_append_i(sv_ret, n)
+        return sv_ret
 
-fncode: SV_to_string(sv)
-    $if sv->type==SVt_int
-        n=sv->value.n
-        &call reset_str
-            $(S).s=f_string_append_int($(fstr), n)
-    $elif sv->type==SVt_float
-        $my double f
-        f=sv->value.f
-        &call reset_str
-            $(S).s=f_string_append_float($(fstr), f, 8)
+    $if char_fmt == 'f'
+        f = do_float(sv)
+        $call get_string_reg, sv_ret
+        SV_append_f(sv_ret, f)
+        return sv_ret
 
-# ------------------
-subcode: reset_str
-    memset(sv, 0, sizeof(*sv))
-    sv->type=SVt_string
-    $(set:S=sv->value.S)
-    $(set:fstr=$(S).s,&$(S).n,&$(S).size)
-    BLOCK
+    return NULL
 

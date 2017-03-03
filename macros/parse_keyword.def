@@ -1,22 +1,32 @@
+subcode:: define_ops
+    # OP_FN_LIST, OP_FN_1 are used similar as OP_Fcall
+    $map define_op, FN_LIST, FN_1
+
 subcode: parse_keyword_cases
+    s = f_skip_simple_spaces(s)
     $if tn_word<WORD_OPERATOR
         tn_op = keyword_op(s2)
         $call set_cur, tn_op, 0
+    $elif tn_word<WORD_FN_GOTO
+        $call set_cur, T_FN_GOTO, tn_word
     $map case_category, FN_LIST
+    $map case_category, FN_1
 
     subcode: case_category(name)
         $elif tn_word<WORD_$(name)
-            $call set_cur, T_$(name), tn_word
+            $if *s=='('
+                # look like function
+                #     -- some make sense, some don't
+                # ref: do_sub.def
+                $call new_op2, op, OP_$(name), tn_word, 0
+                $call set_cur, T_UNARY, op
+            $else
+                $call set_cur, T_$(name), tn_word
 
 # ref: perlcode: perl_my_word
 subcode: init_word_list 
     my @word_list = qw(
-        $(for:a in $(KEYOP_LIST))
-            $:: $(a)
-        $: OPERATOR
-        $(for:a in $(KEY_FN_LIST))
-            $:: $(a)
-        $: FN_LIST
+        $map _category, OPERATOR, FN_GOTO, FN_LIST, FN_1
         $(for:a in $(KEY_OTHER))
             $:: $(a)
         );
@@ -24,27 +34,37 @@ subcode: init_word_list
         $(for:a in OPERATOR,FN_LIST,OTHER)
             $(a)=>1,
     );
+    # --------------
+    subcode: _category(NAME)
+        $(for:a in $(KEY_$(NAME)))
+            $:: $(a)
+        $:: $(NAME)
+
 
 #----------------------------------------------- 
 subcode: _autoload
     $global char* WORD_names[]={DUMP_STUB WORD_names}
 
 macros:
-    KEYOP_LIST:: eq,ne,le,ge,lt,gt,cmp, or,and,not, x, 
-    KEY_FN_LIST:: print,printf
-    KEY_OTHER:: my,our,local
+    KEY_OPERATOR:: eq,ne,le,ge,lt,gt,cmp, or,and,not, x, 
+    KEY_FN_GOTO::  goto, next, last, redo, return
+    KEY_FN_LIST::
+    KEY_FN_1::
+    KEY_OTHER::
 
 fncode: keyword_op(s)
     $return_type int
-    $(for:name in $(KEYOP_LIST))
+    $(for:name in $(KEY_OPERATOR))
         $case s $eq "$(name)"
             return T_$(name)
     return 0
 
-fncode: get_WORD_name(id)
+fncode: get_WORD_name(int id)
     $return_type char *
-    $if n_word < sizeof(WORD_names)/sizeof(char*)
-        return WORD_names[id]
+    $if id<1
+        return NULL
+    $elif id <= sizeof(WORD_names)/sizeof(char*)
+        return WORD_names[id-1]
     return NULL
 
 #------
@@ -61,10 +81,18 @@ perlcode: perl_my_word
     push @$block, "NULL"
     # match
     my %h
-    my $idx=1
+    $(if:1) # use enum
+        my @t=("WORD_") # start idx at 1
+        $foreach $a in @word_list
+            push @t, "WORD_$a"
+        $enums{WORD}=join(",", @t)
+        push @enum_list, "WORD"
+    $(else) # use #define
+        my $idx=1
+        $foreach $a in @word_list
+            add_define("WORD_$a", $idx)
+            $idx++
     $foreach $a in @word_list
-        add_define("WORD_$a", $idx)
-        $idx++
         $if !$word_types{$a}
             $h{substr($a, 0, 1)} .= ",$a"
     push @$out, "switch(s[0]){"
