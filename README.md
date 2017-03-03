@@ -25,7 +25,8 @@ The main branch will focus on readability. While it does emphasize on correctnes
 
 I am open to add branches or forks for production branch(es) that aim to full compatibility of Perl 5, or add any features or fix behaviors, and accept contributions. In fact, it is best if there are developer who want to take ownerships for them. 
     
-
+### PS
+The code is in C, with MyDef meta framework.
 
 
 
