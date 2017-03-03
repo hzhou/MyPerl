@@ -48,7 +48,3 @@ page: myperl, basic_frame
     $call @load_modules
     stash_global = g_stashes[1]
     $call run, cv_main
-
-fncode: croak(s_msg)
-    fprintf(stderr, "%s\n", s_msg)
-    exit(-1)
