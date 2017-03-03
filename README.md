@@ -19,7 +19,7 @@
     make all && out/myperl
 
 ### Plan
-The goal for the main branch is to implement a subset of Perl, which will run all my useful Perl code. I useful Perl code spans over a decade, so aiming at this goal, I hope it will result in a very useful Perl alternative. 
+The goal for the main branch is to implement a subset of Perl, which will run all my useful Perl code. My useful Perl codes span over a decade, so aiming at this goal, I hope it will result in a very useful Perl alternative. 
 
 The main branch will focus on readability. While it does emphasize on correctness and speed, it does not try to entirely emulate Perl 5. It will only include necessary features (my say). Generally I will not accept pull requests on this branch (unless the contributor shares my philosophy).
 
