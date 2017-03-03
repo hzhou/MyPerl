@@ -111,7 +111,7 @@ subcode: if_new_module(name, n)
         modules_len++
 
 subcode: load_modules
-    $print loading $modules_len modules...
+    # $print loading $modules_len modules...
     i=0
     $while i<modules_len; i++
         ts_file = find_module_file(modules[i])

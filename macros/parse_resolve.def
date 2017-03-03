@@ -1,8 +1,48 @@
+#---- ++/-- ------------------------------------ 
+subcode:: define_ops
+    $map define_op, INC, DEC
+
 subcode:: resolve_atom_prefix
-    $case cur.type==T_$(sym:++)
+    $case cur.type==T_$(sym:++) || cur.type==T_$(sym:--)
+        $if cur.type==T_$(sym:++)
+            tn_op = OP_INC
+        $else
+            tn_op = OP_DEC
+
         $if $(type:1)==T_ATOM
-            op_a = $(value:1).op
+            $call new_op, op, tn_op, $(value:1).op
+        $else
+            $call error, "postfix ++/--"
+        $(value:1).op = op
+        goto lexer
+
+subcode:: reduce_prefix_cases
+    case T_$(sym:++):
+    case T_$(sym:--):
+        $if $(op_t)==T_$(sym:++)
+            tn_op = OP_$(sym:+=)
+        $else
+            tn_op = OP_$(sym:-=)
+
+        $if $(type:1)==T_ATOM
             $call new_op, op_b, OP_CONST, sv_TRUE
-            $call new_op2, op, OP_$(sym:+=), op_a, op_b
-            $(value:1).op = op
-            goto lexer
+            $call new_op2, op, tn_op, $(value:1).op, op_b
+        $else
+            $call error, "prefix ++/--"
+        break
+
+# ref: do_bin_ops.def -- do_opeq_num
+subcode:: eval_op_cases
+    case OP_INC:
+    case OP_DEC:
+        # only integer makes sense here
+        #  REVISIT when we have extended integer
+        sv_var = eval_op($(R), $(CTX_LEFT))
+        sv_ret = SV_copy(NULL, sv_var)
+        SV_to_int(sv_var)
+        $if op->type == OP_INC
+            sv_var->value.n++
+        $else
+            sv_var->value.n--
+        # left context does not return register, so skip ret_svreg
+        return sv_ret

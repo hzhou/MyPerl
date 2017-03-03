@@ -14,6 +14,7 @@ fncode: get_copy
     $while svcopy[i_svcopy]
         $call inc_i_svcopy
 
+    # $print get_copy: $i_svcopy
     svcopy[i_svcopy]=2 # at least two
     n_svcopy++
     return i_svcopy
@@ -22,20 +23,34 @@ fncode: get_copy
         # to optimize, use power of 2 and bit mask
         i_svcopy=(i_svcopy+1)%$(N_COPIES)
 
-subcode: ret_copy(i)
-    svcopy[$(i)]--
-    $if svcopy[$(i)]==0
-        n_svcopy--
-        BLOCK
+subcode: ret_copy(sv)
+    $(set:i=$(sv)->copy)
+    $if $(i)
+        $my i
+        i = $(i)
+        $(i)=0
+
+        $call assert, svcopy[i]>0
+        svcopy[i]--
+        $if svcopy[i]==0
+            n_svcopy--
+            # last copy, just take it
+        $else
+            # on_write: duplicate
+            # on refdec: return (do not free)
+            BLOCK
 
 subcode: sv_on_write(sv)
-    $if $(sv)->copy
-        &call ret_copy, $(sv)->copy
-            # sole owner, go ahead
-            NOOP
-        $else
-            $(sv)->copy = 0
-            BLOCK
+    $(set:msg=sv_on_write)
+    &call ret_copy, $(sv)
+        BLOCK
+
+#----------------------------------------------- 
+#- ref: SV_refdec
+subcode: sv_decopy
+    $(set:msg=sv_decopy)
+    &call ret_copy, sv
+        return
 
 # -------------------------
 fncode: SV_copy(sv_ret, sv)
@@ -48,17 +63,8 @@ fncode: SV_copy(sv_ret, sv)
         $if !sv->copy
             sv_ret->copy = sv->copy = get_copy()
         $else
+            svcopy[sv->copy]++
             sv_ret->copy = sv->copy
     memcpy(&sv_ret->value, &sv->value, sizeof(sv->value))
     return sv_ret
 
-#----------------------------------------------- 
-#- ref: SV_refdec
-subcode: sv_decopy
-    $if sv->copy
-        tn_done = 1
-        &call ret_copy, sv->copy
-            # last copy, need deallocate
-            tn_done=0
-        $if tn_done
-            return

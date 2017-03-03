@@ -109,6 +109,10 @@ subcode: debug_AV_free
     $if n_debug
         $print "AV_free %p", av
 
+subcode: debug_sv_free_string
+    $(if:0)
+        $(s)[$(n)]='\0'
+        $print "free string sv%p - %p [%d] - %s",sv, $(s), $(size), $(s)
 #----------------------------------------------- 
 fncode: dump_sv(sv, s_msg)
     $print "$s_msg-"

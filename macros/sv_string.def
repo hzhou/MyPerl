@@ -29,7 +29,7 @@ subcode:: sv_ref_release
     $case $(T:string)
         &call with_sv_string, sv
             $if $(size)>0
-                $print "free string sv%p - %p [%d]",sv, $(s), $(size)
+                $call @debug_sv_free_string
                 free($(s))
 
 # ref: do_bin_ops.def -- opeq

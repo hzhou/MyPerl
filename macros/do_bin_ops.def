@@ -85,8 +85,9 @@ subcode:: eval_op_group
             $call do_opeq_num
         $call @do_opeq
         done_opeq:
-        $call ret_svreg, sv_b
-        return sv_a
+        sv_ret = SV_copy(NULL, sv_a)
+        $map ret_svreg, sv_a, sv_b
+        return sv_ret
 
 #----------------------------------------------- 
 subcode: do_bin_string
