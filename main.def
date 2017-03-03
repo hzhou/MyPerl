@@ -1,12 +1,12 @@
-include: macros/av.def
-include: macros/hv.def
-include: macros/sv.def
-include: macros/op.def
+include: macros/av.def  # array data type
+include: macros/hv.def  # hash  data type
+include: macros/sv.def  # scalar 
+include: macros/op.def  # syntax tree
 
 include: macros/sv_string.def
-include: macros/init.def
+include: macros/init.def         # @_, $_, etc.
 
-include: macros/stash.def
+include: macros/stash.def        # symbol table
 include: macros/scope.def
 include: macros/cv.def
 include: macros/cv_run.def
