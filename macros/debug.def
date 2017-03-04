@@ -138,3 +138,11 @@ subcode: debug_pcre
     subcode: check(E)
         $case n_regex_caps == PCRE_ERROR_$(E)
             $print "PCRE_ERROR_$(E)"
+
+#---------------------------------------- 
+subcode: debug_parse
+    $(if:debug_parse)
+        $local i_loop=0
+        i_loop++
+        $if i_loop>$(debug_parse)
+            $call error, debug_parse tripped

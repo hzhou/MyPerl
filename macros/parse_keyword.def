@@ -7,8 +7,10 @@ subcode: parse_keyword_cases
     $if tn_word<WORD_OPERATOR
         tn_op = keyword_op(s2)
         $call set_cur, tn_op, 0
+        goto try_reduce
     $elif tn_word<WORD_FN_GOTO
         $call set_cur, T_FN_GOTO, tn_word
+        goto try_reduce
     $map case_category, FN_LIST
     $map case_category, FN_1
 
@@ -22,6 +24,7 @@ subcode: parse_keyword_cases
                 $call set_cur, T_UNARY, op
             $else
                 $call set_cur, T_$(name), tn_word
+            goto try_reduce
 
 # ref: perlcode: perl_my_word
 subcode: init_word_list 

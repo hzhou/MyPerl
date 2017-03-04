@@ -8,6 +8,7 @@ subcode:: parse_keyword_other
     $elif tn_word == WORD_sub
         $call new_op, op, OP_SUB, 0
         $call set_cur, T_BOS, op
+        goto try_reduce
 
 subcode:: parse_bareword
     $case tn_bos_op == OP_SUB
@@ -23,7 +24,7 @@ subcode:: reduce_statement_cv1
     $case $(T) == OP_SUB
         sv_name = $(value:1).op->left.sv
         &call with_sv_string, sv_name
-            $call add_sub, $(s), $(n), $(cv)
+            $call add_sub, $(s), $(n), cv
         i_top -= 1
         goto lexer
 
@@ -49,7 +50,7 @@ subcode:: parse_bareword
         # reduce ref: parse_reduce.def
         cur.type=T_UNARY
         cur.value.op = op
-        break
+        goto try_reduce
 
     subcode: bareword_subname
         sv = get_sv(SVt_string)

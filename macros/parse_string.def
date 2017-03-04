@@ -15,7 +15,7 @@ subcode:: parse_match_cases
             $call error, "unterminated string"
 
         $call set_cur, T_ATOM, op
-        break
+        goto do_shift
 
 #----------------------------------------------- 
 fncode: f_get_str_q(s, struct OP ** p_op)

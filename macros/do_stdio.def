@@ -16,14 +16,7 @@ macros:
 
 #---- FH ----------------------------------- 
 subcode:: parse_bareword
-    $case tn_unary_word == WORD_* :||: open, close, print, printf
-        $call set_var_io
-        break
-    $case $(type:1)==T_BOC && $(value:1).n=='<'
-        $call set_var_io
-        break
-
-    subcode: set_var_io
+    $case ($(join:tn_unary_word==WORD_*:||:open,close,print,printf)) || ($(type:1)==T_BOC && $(value:1).n=='<')
         # ref: parse_var.def -- match_variable
         $(set:s=ts_var_buf)
         $(s)[0]='*' # sigil
@@ -38,6 +31,7 @@ subcode:: parse_bareword
                 $call error, "file handle [%s] not defned", $(s)
         cur.type=T_ATOM
         $call new_op2, cur.value.op, OP_GLOBAL,'*',i_var
+        goto do_shift
 
 #---- print FH $atom -----
 subcode:: resolve_atom_atom
@@ -52,7 +46,7 @@ subcode:: resolve_op_op
     $case cur.type == T_Lt
         cur.type = T_BOC
         cur.value.n = '<'
-        goto try_reduce
+        goto do_shift
 
 macros:
     # let's hack this keyword for <FH>

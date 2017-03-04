@@ -18,24 +18,16 @@ include: macros/parse_bareword.def
 # include: macros/parse_old.def
 
 subcode: _autoload
-    # YYSTYPE
-    $union(YYVAL) n, s, op, cv
-    $typedef union YYVAL YYSTYPE
-    $typedef struct OP OP
+    $union(VAL) n, s, op, cv
 
-subcode:: define_parse_terms
-    $map atom, WORD, ATOM
-
-fncode: perl_parse(s_in, file_in)
+fncode: perl_parse(s_in, file_in, struct TOK* stack, i_top)
     $(set:in_perl_parse=1)
-    $return_type struct CV*
-    $local s=s_in
-    $global file_src
-    file_src = file_in
-    # $print "s:%p, file_src: %p", s, file_src
+    $call parse_scan_init, s_in, file_in
+    s = s_in
     $call parse_frame
-    return stack[0].value.cv
 
+    return i_top
+    # ----------------
     subcode: reduce
         $(set:op_t=$(type:2))
         $if $(op_prefix:$(type:2))
@@ -69,8 +61,14 @@ fncode: perl_parse(s_in, file_in)
                 $call reduce_cv
             $call copy_stack, i_top-2, i_top-1
             i_top-=1
-            cur.type=0
-            break
+            goto lexer
+
+    subcode: reduce_eof
+        $if i_top==2
+            $call copy_stack, 0, 1
+            return 1
+        $else
+            return i_top
 
     subcode: reduce_postfix
         $call error, "Don't know reduce_postfix"
@@ -79,13 +77,12 @@ fncode: perl_parse(s_in, file_in)
     # -- during match
     subcode: set_cur(type, v)
         cur.type=$(type)
-        $(if:v!=0)
-            $(if:v~s_)
-                cur.value.s = $(v)
-            $(elif:v~op)
-                cur.value.op = $(v)
-            $(else)
-                cur.value.n = $(v)
+        $(if:v~s_)
+            cur.value.s = $(v)
+        $(elif:v~op)
+            cur.value.op = $(v)
+        $(else)
+            cur.value.n = $(v)
 
     # -- during match/reduction
     subcode: set_atom(op_type, v)
@@ -99,11 +96,11 @@ subcode: match
     $elif *s=~[({\[]
         $call set_cur, T_BOC, *s
         s++
-        break
+        goto do_shift
     $elif *s=~[)}\]]
         $call set_cur, T_EOC, *s
         s++
-        break
+        goto try_reduce
     $else
         tn_op=0
         # $print "f_scan_operator [%c]", s[0]
@@ -111,9 +108,9 @@ subcode: match
         # $print "    returns 0x%x", tn_op
         $if tn_op>0
             $call set_cur, tn_op, 0
+            goto try_reduce
         $else
             $call error, "symbol not matched"
-        break
 
 subcode: shift_boc
     $if cur.value.n == '{'
@@ -121,7 +118,7 @@ subcode: shift_boc
         &call if_atom_var, 1
             tb_cv=0
         $if tb_cv
-            $call cv_begin
+            CV_begin()
             $call @set_cv_flags
 
 #----------------------------------------------- 

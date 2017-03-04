@@ -4,7 +4,7 @@ subcode:: parse_match_cases
         sv = get_sv(0)
         s = f_get_number(s, sv)
         $call set_atom, OP_CONST, sv
-        break
+        goto do_shift
 
 #----------------------------------------------- 
 subcode: sv_setiv(v)

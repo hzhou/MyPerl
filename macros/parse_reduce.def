@@ -29,7 +29,7 @@ subcode:: reduce_prefix
         $(op_t)=$(T)
         $(op_op)=op
         i_top-=1
-        continue
+        goto try_reduce
 
 fncode: make_op_FN_LIST(tn_word, op_term)
     $(set:op_n=tn_word)
@@ -57,7 +57,7 @@ subcode:: reduce_binary
     }
     $(term1) = op
     i_top-=2
-    continue
+    goto try_reduce
 
     # -----------
     subcode: BIN_sym(v)
@@ -77,13 +77,13 @@ subcode:: resolve_op_op
     $case ($(T:EOC) || $(T:EOF)) && $(T1:Semi)
         # {...;}
         i_top--
-        continue
+        goto try_reduce
         
 subcode:: resolve_op_op
     $case $(T:EOC) && $(T1:BOC)
         # (), {}
+        i_top-=1
         cur.type = T_ATOM
         cur.value.op = NULL
-        i_top-=1
-        break
+        goto do_shift
 

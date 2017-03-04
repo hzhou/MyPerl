@@ -15,11 +15,10 @@ subcode:: parse_bareword
 subcode:: parse_bareword
     $case s=~/=>/
         $call bareword_to_string
-        break
     $case *s=='}' && $(type:1)==T_BOC
         $call bareword_to_string
-        break
 
     subcode: bareword_to_string
         sv = sv_from_s(s2, n)
         $call set_atom, OP_CONST, sv
+        goto do_shift

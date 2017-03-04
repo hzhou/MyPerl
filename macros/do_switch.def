@@ -9,6 +9,7 @@ subcode:: parse_keyword_other
     $elif tn_word == WORD_if
         $call new_op, op, OP_IF, 0
         $call set_cur, T_BOS, op
+        goto try_reduce
 
 # -- block ----
 subcode:: reduce_statement_cv2

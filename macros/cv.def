@@ -22,12 +22,7 @@ subcode: _autoload
     $global cv_cur=NULL
     $global i_seq=0
 
-subcode: cv_cur_wrap
-    $(set:cv=cv_cur->$1)
-    $(cv:n_vars) = g_local_len - $(cv:i_start)
-    $(cv:n_seq)  = i_seq
-
-subcode: cv_begin
+fncode: CV_begin
     $if cv_cur
         $call cv_cur_wrap
     lex_stack.$push cv_cur
@@ -40,12 +35,12 @@ subcode: cv_begin
     $call @debug_cv_begin
     i_seq = 0
 
-subcode: cv_close(op_block)
-    $if $(op_block)->type == OP_SEQ
-        f_flatten_op_list($(op_block), OP_SEQ)
-        $(op_block)->type=OP_block
+fncode: CV_close(op_block)
+    $if op_block->type == OP_SEQ
+        f_flatten_op_list(op_block, OP_SEQ)
+        op_block->type=OP_block
 
-    cv_cur->op_block = $(op_block)
+    cv_cur->op_block = op_block
     $call cv_cur_wrap
 
     cv = cv_cur
@@ -56,32 +51,22 @@ subcode: cv_close(op_block)
         stash_local = cv_cur->stash
 
     $call @debug_cv_close
-    $(export:cv=cv)
+    # $(export:cv=cv)
+    return cv
 
-# ------------------
-subcode: parse_init
-    $call cv_begin
+subcode: cv_cur_wrap
+    $(set:cv=cv_cur->$1)
+    $(cv:n_vars) = g_local_len - $(cv:i_start)
+    $(cv:n_seq)  = i_seq
 
 # -------------------
-subcode: reduce_eof
-    $if i_top==2
-        $call cv_close, stack[i_top-1].value.op
-        $if lex_stack_len!=0
-            $call error, "cv scope mismatch!"
-        stack[0].value.cv = $(cv)
-        i_top=0
-        break
-    $else
-        $print "EOF: i_top=$i_top"
-        $call error, "Context mis-match!"
-
 subcode:: define_parse_terms
     # T_Stmt2 precedes block
     $map op, pre, Stmt2
 
 subcode: reduce_cv
-    $call cv_close, $(block)
-    $call set_atom, OP_CV, $(cv)
+    cv = CV_close($(block))
+    $call set_atom, OP_CV, cv
     i_top-=2
 
     # need decide whether to append T_Semi
@@ -92,17 +77,17 @@ subcode: reduce_cv
         # bare block
         $call shift_cur
         $call set_cur, T_Semi, 0
-        continue
+        goto try_reduce
     $elif $(type:1)==T_BOS
         # e.g. do {...}
-        $(set:op=stack[i_top-1].value.op)
+        $(set:op=$(value:1).op)
         $(set:T=$(op)->type)
         $call @reduce_statement_cv1
         $call error, "cv1"
     $elif $(type:2)==T_BOS
         # e.g if(cond) {...}
-        $(set:op=stack[i_top-2].value.op)
-        $(set:op1=stack[i_top-1].value.op)
+        $(set:op=$(value:2).op)
+        $(set:op1=$(value:1).op)
         $(set:T=$(op)->type)
         $call @reduce_statement_cv2
         $call error, "cv2"
@@ -111,12 +96,11 @@ subcode: reduce_cv
     subcode: cv1_done
         $(type:1)=T_ATOM
         $call set_cur, T_Semi, 0
-        continue
+        goto try_reduce
 
     subcode: cv2_next
         i_top-=1
-        cur.type = 0
-        break
+        goto lexer
 
     subcode: cv2_done
         i_top-=1

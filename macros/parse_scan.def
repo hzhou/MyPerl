@@ -1,8 +1,9 @@
-subcode: _autoload
-    $global file_src=NULL, s_src_end=NULL
-
-subcode: init_src_string(s, n)
-    s_src_end = $(s)+$(n)
+#---- call this 1st! ------------
+subcode: parse_scan_init(s, file)
+    $global file_src, s_src_end
+    file_src = $(file)
+    $if $(s)
+        s_src_end = $(s)+strlen($(s))
 
 #----------------------------------------------- 
 fncode: f_load_src(s)

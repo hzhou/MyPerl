@@ -10,6 +10,7 @@ subcode:: parse_keyword_other
         $local n_in_my
         n_in_my = tn_word # reset at reduction
         $call set_cur, T_MY, tn_word
+        goto try_reduce
 
 subcode:: reduce_prefix_cases
     case T_MY:
@@ -17,7 +18,7 @@ subcode:: reduce_prefix_cases
         n_in_my = 0
         break
     case T_SIGIL:
-        char_sigil = stack[-2].value.n
+        char_sigil = $(value:2).n
         $call new_op2, op, OP_SIGIL, char_sigil, $(term)
         break
     
@@ -29,10 +30,10 @@ subcode:: parse_match_cases
         $if op
             cur.type=T_ATOM
             cur.value.op = op
-            break
+            goto do_shift
         $else
             $call set_cur, T_SIGIL, char_sigil
-            break
+            goto try_reduce
 
 # ----------------------
 subcode:: parse_bareword
@@ -41,11 +42,11 @@ subcode:: parse_bareword
             $if n_in_my
                 $call error, "package var in my/our"
             $call bareword_to_string
-            break
         $else
             char_sigil = $(value:1).n
             $call match_variable
-            break
+            cur.type=T_ATOM
+            goto do_shift
 
     subcode: match_variable
         $local ts_var_buf[$(MAX_IDENT)]
@@ -66,7 +67,6 @@ subcode:: parse_bareword
         # -----------------------
         subcode: set_var(type, i)
             i_top-=1
-            cur.type=T_ATOM
             $call new_op2, cur.value.op, OP_$(type), char_sigil, $(i)
         # ------------------
         subcode: set_sigil
@@ -114,8 +114,8 @@ subcode:: define_ops
     $map define_op, SIGIL, ARRAY_INDEX, HASH_INDEX
 
 subcode: if_atom_var(i)
-    $if stack[i_top-$(i)].type == T_ATOM
-        tn_type = stack[i_top-$(i)].value.op->type
+    $if $(type:$(i)) == T_ATOM
+        tn_type = $(value:$(i)).op->type
         $if tn_type==$1 :||: OP_SIGIL,OP_LOCAL,OP_GLOBAL
             BLOCK
 
@@ -127,24 +127,22 @@ subcode: check_reduce_var_index
         $elif $(op_eoc)=='}'
             tn_type=OP_HASH_INDEX
         char_index = $(op_eoc)
-        $(set:v=stack[i_top-$1].value)
-        op_index = $(v:1).op
+        op_index = $(value:1).op
         i_top-=2
-        # op_v = $(v:1).op
         $while $(type:2)==T_SIGIL
-            char_sigil = $(v:2).n
+            char_sigil = $(value:2).n
             $if char_sigil!='$'
                 $call error, "var index is scalar (use $)!"
             $if tn_type==OP_ARRAY_INDEX
                 char_sigil='@'
             $elif tn_type==OP_HASH_INDEX
                 char_sigil='%'
-            $call new_op2, op_v, OP_SIGIL, char_sigil, $(v:1).op
+            $call new_op2, op_v, OP_SIGIL, char_sigil, $(value:1).op
             $(type:2)=T_ATOM
-            $(v:2).op=op_v
+            $(value:2).op=op_v
             i_top-=1
-        op_v = f_new_op(tn_type,$(v:1).op,op_index)
-        $(v:1).op=op_v
+        op_v = f_new_op(tn_type,$(value:1).op,op_index)
+        $(value:1).op=op_v
         cur.type=0
         break
 

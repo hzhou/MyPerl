@@ -116,13 +116,11 @@ subcode: load_modules
     $while i<modules_len; i++
         ts_file = find_module_file(modules[i])
         $if ts_file
-            &call open_r, ts_file
-                # $print parsing $ts_file ...
-                &call compile
-                    cv_module = perl_parse(NULL, file_in)
+            &call compile
+                cv_module = f_parse_script(ts_file)
             $call run, cv_module
         $else
-            $call die, "can't load module"
+            $call die, "can't find module"
 
 #----------------------------------------------- 
 subcode:: universal_vars

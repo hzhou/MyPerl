@@ -1,0 +1,29 @@
+
+fncode: run_repl
+    $include readline/readline.h
+    $include readline/history.h
+    $uselib readline
+
+    $(set:type=parse_stack[i_stack_top-$1].type)
+    $(set:value=parse_stack[i_stack_top-$1].value)
+    i_stack_top = 0
+
+    $while 1
+        s = readline("> ")
+        $if !s || s $Eq "quit"
+            return
+        add_history(s)
+
+        i_stack_top = perl_parse(s, NULL, parse_stack, i_stack_top)
+        $if i_stack_top == 1 && $(type:1)==T_ATOM
+            sv_ret = eval_op($(value:1).op, 0, 0)
+            sv_str = do_string(sv_ret)
+            $if sv_ret && sv_str
+                &call with_sv_string, sv_str
+                    $(s)[$(n)]='\0'
+                    $print "  %s", $(s)
+            $map ret_svreg, sv_ret, sv_str
+            i_stack_top = 0
+        $else
+            $print [cont]
+

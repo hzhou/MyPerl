@@ -17,6 +17,7 @@ include: macros/package.def
 
 include: macros/parse.def
 include: macros/eval_op.def
+include: macros/repl.def
 
 include: macros/do_convert.def
 include: macros/do_bin_ops.def
@@ -36,15 +37,36 @@ include: macros/debug.def
 
 page: myperl, basic_frame
     $call @perl_init # sets up globals
+    $(if:0)
+        $(set:f=tests/t.pl)
+        run_script("$(f)")
+    $(else)
+        run_repl()
 
-    $(set:f=tests/t.pl)
-    &call2 try_open_r, "$(f)"
-        &call compile
-            $call new_package, "::"
-            cv_main = perl_parse(NULL, file_in)
-    error:
-        $call die, "Sorry, I only run tests/t.pl (for now)"
+#---------------------------------------- 
+fncode: run_script(s_file)
+    &call compile
+        $call new_package, "::"
+        cv_main = f_parse_script(s_file)
 
     $call @load_modules
+
     stash_global = g_stashes[1]
     $call run, cv_main
+
+#---------------------------------------- 
+subcode: _autoload
+    $global struct TOK parse_stack[$(MAX_TOK_STACK)], i_stack_top
+
+fncode: f_parse_script(s_file)
+    &call open_r, s_file
+        CV_begin()
+        i_stack_top = perl_parse(NULL, file_in, parse_stack, 0)
+        $if i_stack_top == 1
+            # [OP_CV]
+            cv = CV_close(parse_stack[0].value.op)
+            $call assert, lex_stack_len==0
+            return cv
+        $else
+            $call die, "f_parse_script failed."
+
