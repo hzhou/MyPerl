@@ -112,8 +112,8 @@ subcode: match
         $else
             $call error, "symbol not matched"
 
-subcode: shift_boc
-    $if cur.value.n == '{'
+subcode:: pre_shift_other
+    $case cur.type==T_BOC && cur.value.n == '{'
         tb_cv = 1
         &call if_atom_var, 1
             tb_cv=0

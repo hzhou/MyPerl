@@ -1,11 +1,9 @@
-subcode: _autoload
-    $call setup_parser
-
 #----------------------------------------------- 
 # defines terminal names such as T_Semi, ...
 # spcifies precedence
 subcode: define_op_precedence
     $map op, left, ;
+    $map op, left, T_BOS_TEMP
     $map op, left, or
     $map op, left, and
     $map op, pre, not
@@ -42,66 +40,10 @@ subcode: define_op_precedence
 #-   //=: what is it?
 
 #---------------------------------------- 
-subcode: setup_parser
-    $define(T_ATOM) 1
+#  consider: return $n if $n==0; 
+#      we want if to reduce previous and absorb rest
 
-    $global char* T_op_names[]={DUMP_STUB T_op_names}
-    $(setmacro:_op=0x0)
-    # begin of context/statement
-    $map op, pre, BOC, BOS
-    # end   of context/file
-    $map op, post, EOC, EOF
-    $call @define_op_precedence
-    $(block:T_op_names)
-        $: NULL
-
-    subcode: op(NAME)
-        $(if:NAME in left,right,pre,post)
-            $call set_precedence, $(NAME)
-        $(else)
-            $(setmacro:_op+=0x100)
-            $(if:NAME~[A-Za-z])
-                # NOOP
-            $(else)
-                $(set:NAME=$(sym:$(NAME)))
-
-            $define(T_$(NAME)) $(_op)
-            $(block:T_op_names)
-                "T_$(NAME)",
-
-fncode: get_T_name(n_type)
-    $return_type char *
-    tn_op = n_type >> 8
-    $if tn_op
-        return T_op_names[tn_op-1]
-    $else
-        return "T_ATOM"
-
-perlcode: set_precedence
-    my $assoc=0
-    $if $param=~/^right/
-        $assoc=1
-    $elif $param=~/^pre/
-        $assoc=2
-    $elif $param=~/^post/
-        $assoc=3
-
-    my $macro = $MyDef::def->{macros}
-    my $_op= hex($macro->{_op})
-    $_op = ($_op & 0xfffffc)+4+$assoc
-    $macro->{_op} = "0x".sprintf("%x", $_op)
-
-macros:
-    # seq##prec##assoc
-    #      64 max level of precedence
-    #      16-bit max seq
-    is_atom: $1==T_ATOM
-    is_op: ($1 & 0xffff00)
-    op_prec: ($1 & 0xff)
-    op_left: ($1 & 3)==0
-    op_right: ($1 & 3)==1
-    op_prefix: ($1 & 3)==2
-    op_postfix: ($1 & 3)==3
-
-    # BOC: begin of context
-    # (, [, {: use char value, bof: use 0
+subcode:: pre_shift_other
+    $case cur.type==T_BOS_TEMP
+        cur.type = T_BOS
+# 

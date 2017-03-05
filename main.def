@@ -37,7 +37,7 @@ include: macros/debug.def
 
 page: myperl, basic_frame
     $call @perl_init # sets up globals
-    $(if:0)
+    $(if:1)
         $(set:f=tests/t.pl)
         run_script("$(f)")
     $(else)

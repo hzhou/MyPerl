@@ -3,13 +3,25 @@ macros:
 
 subcode:: define_ops
     $map define_op, IF, ELIF, ELSE
+    $map define_op, IF_quick
 
 #-- if/elsif/else ---------------------------- 
 subcode:: parse_keyword_other
     $elif tn_word == WORD_if
-        $call new_op, op, OP_IF, 0
-        $call set_cur, T_BOS, op
-        goto try_reduce
+        # if(...){}  or  ... if cond;
+        $if $(type:1)==T_BOC || $(type:1)==T_Semi
+            $call new_op, op, OP_IF, 0
+            $call set_cur, T_BOS, op
+            goto try_reduce
+        $else
+            $call new_op, op, OP_IF_quick, 0
+            $call set_cur, T_BOS_TEMP, op
+            goto try_reduce
+
+# -- [code] if cond;
+subcode:: reduce_prefix_cases
+    case T_BOS_TEMP:
+
 
 # -- block ----
 subcode:: reduce_statement_cv2

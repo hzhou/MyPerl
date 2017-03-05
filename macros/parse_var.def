@@ -28,6 +28,7 @@ subcode:: parse_match_cases
         char_sigil=*s++
         op = f_parse_var_special(char_sigil, s)
         $if op
+            s++ # special variable are single letters
             cur.type=T_ATOM
             cur.value.op = op
             goto do_shift
@@ -271,7 +272,7 @@ fncode: f_parse_var_special(char_sigil, s)
     $if char_sigil=='$'
         $if s[1]=='['
             char_sigil='@'
-        $elif s[1]=='%'
+        $elif s[1]=='{'
             char_sigil='%'
 
     $if char_sigil=='$'

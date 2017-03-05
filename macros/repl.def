@@ -28,12 +28,9 @@ fncode: run_repl
         i_stack_top = perl_parse(s, NULL, parse_stack, i_stack_top)
         $if i_stack_top == 1 && $(type:1)==T_ATOM
             sv_ret = eval_op($(value:1).op,1,0)
-            sv_str = do_string(sv_ret)
-            $if sv_ret && sv_str
-                &call with_sv_string, sv_str
-                    $(s)[$(n)]='\0'
-                    $print "  %s", $(s)
-            $map ret_svreg, sv_ret, sv_str
+            f_dump_sv(sv_ret)
+            $print 
+            $map ret_svreg, sv_ret
             i_stack_top = 0
         $else
             $my struct TOK cur={0,0}
@@ -42,3 +39,18 @@ fncode: run_repl
 
         f_commit_local_names()
 
+fncode: f_dump_sv(sv)
+    $if !sv
+        $print (null)
+    $elif sv->type==SVt_av
+        av = $(sv_av:sv)
+        &call av_each, av
+            f_dump_sv($(sv))
+            $print " -"
+    $else
+        sv_str = do_string(sv)
+        $if sv_str
+            &call with_sv_string, sv_str
+                $(s)[$(n)]='\0'
+                $print "  %s-", $(s)
+        $call ret_svreg, sv_str
