@@ -7,7 +7,9 @@ fncode: run_repl
     $(set:type=parse_stack[i_stack_top-$1].type)
     $(set:value=parse_stack[i_stack_top-$1].value)
     i_stack_top = 0
-
+    $print
+    $print "type \"quit\" to exit."
+    $print
     $while 1
         s = readline("> ")
         $if !s || s $Eq "quit"

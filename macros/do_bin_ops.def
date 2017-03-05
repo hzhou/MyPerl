@@ -1,3 +1,6 @@
+#---------------------------------------- 
+#-- also included: logic and, or, unary -, !, ~ (scroll down)
+
 macros:
     arith_ops_sym:: +, -, *, /, %
     bit_ops_sym::   |, &, ^, >>, <<
@@ -265,4 +268,34 @@ subcode:: eval_op_cases
         $else
             $call ret_svreg, sv_ret
             return eval_op($(R), $(CTX_SCALAR))
+
+#---- unary -, ~, ! ---------------------------
+subcode:: define_ops
+    $map define_op, UMINUS, NOT
+
+subcode:: reduce_prefix_cases
+    case T_UMINUS:
+        $call new_op, op, OP_UMINUS, $(term)
+        break
+    case T_$(sym:!):
+    case T_not:
+        $call new_op, op, OP_NOT, $(term)
+        break
+
+subcode:: eval_op_cases
+    case OP_UMINUS:
+        sv_a = eval_op($(R), $(CTX_SCALAR))
+        SV_to_int(sv_a)
+        sv_a->value.n = -sv_a->value.n
+        return sv_a
+    case OP_NOT:
+        sv_a = eval_op($(R), $(CTX_SCALAR))
+        $if do_bool(sv_a)
+            sv_ret = sv_FALSE
+        $else
+            sv_ret = sv_TRUE
+        $call ret_svreg, sv_a
+        return sv_ret
+
+        
 

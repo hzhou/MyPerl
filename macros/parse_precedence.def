@@ -8,7 +8,7 @@ subcode: define_op_precedence
     $map op, left, ;
     $map op, left, or
     $map op, left, and
-    $map op, right, not
+    $map op, pre, not
     $map op, pre, FN_LIST, FN_GOTO
     $map op, left, Comma
     $map op, right, =,+=,-=,*=,/=,%=,.=,|=,&=,^=,>>=,<<=

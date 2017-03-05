@@ -1,5 +1,5 @@
 subcode:: parse_bareword
-    $case *s==':'
+    $case s && *s==':'
         $if $(type:1)==T_BOC || $(type:1)==T_Semi
             $if s2+n<s
                 s2[n]=':'
@@ -13,9 +13,9 @@ subcode:: parse_bareword
         stash_local.$set $(name), $(len), i_seq
 
 subcode:: parse_bareword
-    $case s=~/=>/
+    $case s && s $eq "=>"
         $call bareword_to_string
-    $case *s=='}' && $(type:1)==T_BOC
+    $case s && *s=='}' && $(type:1)==T_BOC
         $call bareword_to_string
 
     subcode: bareword_to_string

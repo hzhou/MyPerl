@@ -44,7 +44,7 @@ subcode:: define_ops
     $call define_op, Fcall
 
 subcode:: parse_bareword
-    $case *s=='('
+    $case s && *s=='('
         $call bareword_subname
         $call new_op2, op, OP_Fcall, sv, 0
         # reduce ref: parse_reduce.def

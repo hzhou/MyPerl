@@ -121,7 +121,7 @@ fncode: f_scan_operator(s, int* p_id)
 perlcode: perl_my_operator
     my @op_list=(
         # ',' and '\'' are dealt separately
-        $(for:a in ;,++,--,:,?,=>)
+        $(for:a in ;,++,--,:,?,=>,!,~)
             '$(a)',
         $(for:a in =,=~,..)
             '$(a)',

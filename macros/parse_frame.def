@@ -22,7 +22,7 @@ subcode: parse_frame
     #      or passed in from function parameter
     # $local struct TOK* stack, i_top
     # ----------------------
-    $local struct TOK cur
+    $local struct TOK cur={0,0}
     $call @parse_init
 
     $(set:type=stack[i_top-$1].type)
