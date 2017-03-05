@@ -52,7 +52,7 @@ subcode:: reduce_binary
         $call BIN, Eq, OP_ASSIGN
         $call @reduce_binary_cases
         default:
-            $call error, "unsupported binary op [%s]", get_OP_name($(op_t))
+            $call error, "unsupported binary op [%s]", get_T_name($(op_t))
             break
     }
     $(term1) = op
@@ -74,7 +74,19 @@ subcode:: reduce_binary
 
 #----------------------------------------------- 
 subcode:: resolve_op_op
-    $case ($(T:EOC) || $(T:EOF)) && $(T1:Semi)
+    $case $(T:EOF)
+        $if i_top==1
+            # empty input
+            stack[0].type = T_ATOM
+            break
+        $elif $(T1:Semi)
+            i_top--
+            goto try_reduce
+        $else
+            break
+
+subcode:: resolve_op_op
+    $case $(T:EOC) && $(T1:Semi)
         # {...;}
         i_top--
         goto try_reduce

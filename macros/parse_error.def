@@ -22,7 +22,9 @@ fncode: dump_parse_stack(struct TOK* stack, i_top, struct TOK cur, s)
             $print "[%s], -", get_OP_name($(v).op->type)
         $else
             $print "%s, -", get_T_name($(t))
-    $print "cur: %s", get_T_name(cur.type)
     $if s
+        $print "cur: %s", get_T_name(cur.type)
         $print "  src: [-"
         $print $s
+    $else
+        $print 

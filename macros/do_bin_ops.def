@@ -2,7 +2,7 @@
 #-- also included: logic and, or, unary -, !, ~ (scroll down)
 
 macros:
-    arith_ops_sym:: +, -, *, /, %
+    arith_ops_sym:: +, -, *, /, %, **
     bit_ops_sym::   |, &, ^, >>, <<
     rel_ops_sym:: ==,!=,<,>,<=,>=,<=>
     str_ops_sym:: x, .
@@ -39,7 +39,7 @@ subcode:: define_ops
         $map define_op_sym, eq,ne,lt,gt,le,ge,cmp
 
     &call define_group, 12 # num, =
-        $map define_op_eq, +,-,*,/
+        $map define_op_eq, +,-,*,/,**
     &call define_group, 32 # int, num, =
         $map define_op_eq, %,|,&,^,>>,<<
     &call define_group, 42 # string, =
@@ -143,7 +143,7 @@ subcode: do_opeq_string
 #-----------------
 subcode: do_bin_num
     $(set:f=$1->type==SVt_float)
-    $if $(f:sv_a) || $(f:sv_b) || $(opT:$(sym:/))
+    $if $(f:sv_a)||$(f:sv_b)||$(opT:$(sym:/))||$(opT:$(sym:**))
         f1 = do_float(sv_a)
         f2 = do_float(sv_b)
         $(for:o in +,-,*,/)

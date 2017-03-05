@@ -11,7 +11,7 @@ subcode: define_op_precedence
     $map op, pre, not
     $map op, pre, FN_LIST, FN_GOTO
     $map op, left, Comma
-    $map op, right, =,+=,-=,*=,/=,%=,.=,|=,&=,^=,>>=,<<=
+    $map op, right, =,+=,-=,*=,/=,%=,.=,|=,&=,^=,>>=,<<=,**=
     $map op, right, :, ?
     $map op, left, ..
     $map op, left, ||

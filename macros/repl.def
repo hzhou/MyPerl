@@ -27,5 +27,7 @@ fncode: run_repl
             $map ret_svreg, sv_ret, sv_str
             i_stack_top = 0
         $else
-            $print [cont]
+            $my struct TOK cur={0,0}
+            dump_parse_stack(parse_stack, i_stack_top, cur, NULL)
+            # $print [cont]
 

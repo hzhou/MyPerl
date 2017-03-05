@@ -112,13 +112,3 @@ subcode: parse_frame
         s=f_skip_simple_spaces(s)
         $if !s
             s=s_src_end
-#---------------------------------------- 
-subcode: resolve_op_op
-    $case $(T:EOF)
-        $if i_top==1
-            # empty input
-            stack[0].type = T_ATOM
-            break
-        $else
-            break
-
