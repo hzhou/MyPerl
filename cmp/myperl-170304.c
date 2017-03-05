@@ -69,44 +69,45 @@ typedef int bool;
 #define OP_MinusEq 0x2712
 #define OP_MultEq 0x2812
 #define OP_DivEq 0x2912
-#define OP_ModEq 0x2a32
-#define OP_OrEq 0x2b32
-#define OP_AndEq 0x2c32
-#define OP_CtrlEq 0x2d32
-#define OP_GtGtEq 0x2e32
-#define OP_LtLtEq 0x2f32
-#define OP_DotEq 0x3042
-#define OP_or 0x3100
-#define OP_and 0x3200
-#define OP_UMINUS 0x3300
-#define OP_NOT 0x3400
-#define OP_GLOBAL 0x3500
-#define OP_LOCAL 0x3600
-#define OP_MY 0x3700
-#define OP_ASSIGN 0x3800
-#define OP_SUB 0x3900
-#define OP_Fcall 0x3a00
-#define OP_IF 0x3b00
-#define OP_ELIF 0x3c00
-#define OP_ELSE 0x3d00
-#define OP_IF_YES 0x3e00
-#define OP_IF_NO 0x3f00
-#define OP_while 0x4000
-#define OP_for 0x4100
-#define OP_join 0x4200
-#define OP_Re 0x4300
-#define OP_ReC 0x4400
-#define OP_ReMatch 0x4500
-#define OP_ReReplace 0x4600
-#define OP_VarMatch 0x4700
-#define OP_UNARY 0x4800
-#define OP_INC 0x4900
-#define OP_DEC 0x4a00
-#define OP_FN_LIST 0x4b00
-#define OP_FN_1 0x4c00
-#define OP_SIGIL 0x4d00
-#define OP_ARRAY_INDEX 0x4e00
-#define OP_HASH_INDEX 0x4f00
+#define OP_MultMultEq 0x2a12
+#define OP_ModEq 0x2b32
+#define OP_OrEq 0x2c32
+#define OP_AndEq 0x2d32
+#define OP_CtrlEq 0x2e32
+#define OP_GtGtEq 0x2f32
+#define OP_LtLtEq 0x3032
+#define OP_DotEq 0x3142
+#define OP_or 0x3200
+#define OP_and 0x3300
+#define OP_UMINUS 0x3400
+#define OP_NOT 0x3500
+#define OP_GLOBAL 0x3600
+#define OP_LOCAL 0x3700
+#define OP_MY 0x3800
+#define OP_ASSIGN 0x3900
+#define OP_SUB 0x3a00
+#define OP_Fcall 0x3b00
+#define OP_IF 0x3c00
+#define OP_ELIF 0x3d00
+#define OP_ELSE 0x3e00
+#define OP_IF_YES 0x3f00
+#define OP_IF_NO 0x4000
+#define OP_while 0x4100
+#define OP_for 0x4200
+#define OP_join 0x4300
+#define OP_Re 0x4400
+#define OP_ReC 0x4500
+#define OP_ReMatch 0x4600
+#define OP_ReReplace 0x4700
+#define OP_VarMatch 0x4800
+#define OP_UNARY 0x4900
+#define OP_INC 0x4a00
+#define OP_DEC 0x4b00
+#define OP_FN_LIST 0x4c00
+#define OP_FN_1 0x4d00
+#define OP_SIGIL 0x4e00
+#define OP_ARRAY_INDEX 0x4f00
+#define OP_HASH_INDEX 0x5000
 #define CVf_switch 1
 #define CVf_loop 2
 #define CVf_sub 3
@@ -136,50 +137,51 @@ typedef int bool;
 #define T_CtrlEq 0x1525
 #define T_GtGtEq 0x1625
 #define T_LtLtEq 0x1725
-#define T_Colon 0x1829
-#define T_Qmark 0x1929
-#define T_DotDot 0x1a2c
-#define T_OrOr 0x1b30
-#define T_AndAnd 0x1c34
-#define T_Or 0x1d38
-#define T_Ctrl 0x1e38
-#define T_And 0x1f3c
-#define T_EqEq 0x2040
-#define T_EmarkEq 0x2140
-#define T_LtEqGt 0x2240
-#define T_eq 0x2340
-#define T_ne 0x2440
-#define T_cmp 0x2540
-#define T_Lt 0x2644
-#define T_Gt 0x2744
-#define T_LtEq 0x2844
-#define T_GtEq 0x2944
-#define T_lt 0x2a44
-#define T_gt 0x2b44
-#define T_le 0x2c44
-#define T_ge 0x2d44
-#define T_FN_1 0x2e4a
-#define T_GtGt 0x2f4c
-#define T_LtLt 0x304c
-#define T_Plus 0x3150
-#define T_Minus 0x3250
-#define T_Dot 0x3350
-#define T_Mult 0x3454
-#define T_Div 0x3554
-#define T_Mod 0x3654
-#define T_x 0x3754
-#define T_EqTlide 0x3858
-#define T_UMINUS 0x395e
-#define T_Tlide 0x3a5e
-#define T_Emark 0x3b5e
-#define T_UAMPER 0x3c5e
-#define T_MultMult 0x3d61
-#define T_PlusPlus 0x3e66
-#define T_MinusMinus 0x3f66
-#define T_MinusGt 0x4068
-#define T_UNARY 0x416e
-#define T_SIGIL 0x426e
-#define T_MY 0x436e
+#define T_MultMultEq 0x1825
+#define T_Colon 0x1929
+#define T_Qmark 0x1a29
+#define T_DotDot 0x1b2c
+#define T_OrOr 0x1c30
+#define T_AndAnd 0x1d34
+#define T_Or 0x1e38
+#define T_Ctrl 0x1f38
+#define T_And 0x203c
+#define T_EqEq 0x2140
+#define T_EmarkEq 0x2240
+#define T_LtEqGt 0x2340
+#define T_eq 0x2440
+#define T_ne 0x2540
+#define T_cmp 0x2640
+#define T_Lt 0x2744
+#define T_Gt 0x2844
+#define T_LtEq 0x2944
+#define T_GtEq 0x2a44
+#define T_lt 0x2b44
+#define T_gt 0x2c44
+#define T_le 0x2d44
+#define T_ge 0x2e44
+#define T_FN_1 0x2f4a
+#define T_GtGt 0x304c
+#define T_LtLt 0x314c
+#define T_Plus 0x3250
+#define T_Minus 0x3350
+#define T_Dot 0x3450
+#define T_Mult 0x3554
+#define T_Div 0x3654
+#define T_Mod 0x3754
+#define T_x 0x3854
+#define T_EqTlide 0x3958
+#define T_UMINUS 0x3a5e
+#define T_Tlide 0x3b5e
+#define T_Emark 0x3c5e
+#define T_UAMPER 0x3d5e
+#define T_MultMult 0x3e61
+#define T_PlusPlus 0x3f66
+#define T_MinusMinus 0x4066
+#define T_MinusGt 0x4168
+#define T_UNARY 0x426e
+#define T_SIGIL 0x436e
+#define T_MY 0x446e
 #define T_EqGt T_Comma
 #define isword(c) (isalnum(c) || c=='_')
 #define isword1st(c) (isalpha(c) || c=='_')
@@ -338,13 +340,13 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top);
 struct SV* eval_op(struct OP* op, int tn_context, int tn_level);
 void* do_string(struct SV* sv);
 void SV_refdec(struct SV* sv);
+void dump_parse_stack(struct TOK* stack, int i_top, struct TOK cur, char* s);
 char* f_skip_spaces(char* s);
 char* f_get_regex(char* s, struct OP ** p_op);
 struct OP* get_op();
 char* f_get_number(char* s, struct SV* sv);
 char* f_get_str_q(char* s, struct OP ** p_op);
 char* f_get_str_qq(char* s, struct OP ** p_op);
-void dump_parse_stack(struct TOK* stack, int i_top, struct TOK cur, char* s);
 char* f_scan_word(char* s);
 char* f_scan_id(char* s);
 int my_word(char* s, int n);
@@ -359,6 +361,7 @@ struct OP* f_parse_var_special(char char_sigil, char* s);
 char* f_scan_operator(char* s, int* p_id);
 char* get_OP_name(int n_OP);
 struct OP* f_new_op(int tn_type, struct OP* op_a, struct OP* op_b);
+char * get_T_name(int n_type);
 struct CV* CV_close(struct OP* op_block);
 void f_flatten_op_list(struct OP* op, int tn_type);
 struct OP* get_op_list(int n);
@@ -393,7 +396,6 @@ char* f_load_src(char* s);
 char* f_skip_line(char* s);
 struct OP* f_parse_str_qq(char* s, bool is_regex);
 char* f_get_v_string(char* s, struct SV* sv);
-char * get_T_name(int n_type);
 char* f_scan_delim_quick(char* s);
 struct CV* CV_new();
 int f_op_iter_count(struct OP* op, int tn_type);
@@ -455,6 +457,7 @@ char* OP_names[] = {
     "OP_MinusEq",
     "OP_MultEq",
     "OP_DivEq",
+    "OP_MultMultEq",
     "OP_ModEq",
     "OP_OrEq",
     "OP_AndEq",
@@ -563,6 +566,7 @@ char* T_op_names[] = {
     "T_CtrlEq",
     "T_GtGtEq",
     "T_LtLtEq",
+    "T_MultMultEq",
     "T_Colon",
     "T_Qmark",
     "T_DotDot",
@@ -1078,7 +1082,8 @@ void run_repl(){
             i_stack_top = 0;
         }
         else{
-            puts("[cont]");
+            struct TOK cur = {0,0};
+            dump_parse_stack(parse_stack, i_stack_top, cur, NULL);
         }
     }
 }
@@ -1898,11 +1903,15 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                         stack[0].type = T_ATOM;
                         break;
                     }
+                    else if(stack[i_top-1].type == T_Semi){
+                        i_top--;
+                        goto try_reduce;
+                    }
                     else{
                         break;
                     }
                 }
-                else if((cur.type == T_EOC || cur.type == T_EOF) && stack[i_top-1].type == T_Semi){
+                else if(cur.type == T_EOC && stack[i_top-1].type == T_Semi){
                     i_top--;
                     goto try_reduce;
                 }
@@ -2227,6 +2236,16 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                         }
                         op = f_new_op(OP_Mod, stack[i_top-3].value.op, stack[i_top-1].value.op);
                         break;
+                    case T_MultMult:
+                        if(n_debug){
+                            int i;
+                            for(i=0; i<i_top-2; i++){
+                                fputs(".", stdout);
+                            }
+                            printf("reduce_binary: OP_MultMult -> %s, %s\n", get_OP_name(stack[i_top-3].value.op->type), get_OP_name(stack[i_top-1].value.op->type));
+                        }
+                        op = f_new_op(OP_MultMult, stack[i_top-3].value.op, stack[i_top-1].value.op);
+                        break;
                     case T_Or:
                         if(n_debug){
                             int i;
@@ -2487,6 +2506,16 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                         }
                         op = f_new_op(OP_ModEq, stack[i_top-3].value.op, stack[i_top-1].value.op);
                         break;
+                    case T_MultMultEq:
+                        if(n_debug){
+                            int i;
+                            for(i=0; i<i_top-2; i++){
+                                fputs(".", stdout);
+                            }
+                            printf("reduce_binary: OP_MultMultEq -> %s, %s\n", get_OP_name(stack[i_top-3].value.op->type), get_OP_name(stack[i_top-1].value.op->type));
+                        }
+                        op = f_new_op(OP_MultMultEq, stack[i_top-3].value.op, stack[i_top-1].value.op);
+                        break;
                     case T_OrEq:
                         if(n_debug){
                             int i;
@@ -2588,7 +2617,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                         op = f_new_op(OP_and, stack[i_top-3].value.op, stack[i_top-1].value.op);
                         break;
                     default:
-                        printf("unsupported binary op [%s]\n", get_OP_name(stack[i_top-2].type));
+                        printf("unsupported binary op [%s]\n", get_T_name(stack[i_top-2].type));
                         dump_parse_stack(stack, i_top, cur, s);
                         exit(0);
                         break;
@@ -3896,7 +3925,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                         }
                     }
                     else if(op->type & 0x10){
-                        if(sv_a->type == SVt_float || sv_b->type == SVt_float || op->type == OP_Div){
+                        if(sv_a->type == SVt_float || sv_b->type == SVt_float || op->type == OP_Div || op->type == OP_MultMult){
                             f1 = do_float(sv_a);
                             f2 = do_float(sv_b);
                             if(op->type == OP_Plus){
@@ -3987,7 +4016,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                     }
                 }
                 else if(op->type & 0x10){
-                    if(sv_a->type == SVt_float || sv_b->type == SVt_float || op->type == OP_DivEq){
+                    if(sv_a->type == SVt_float || sv_b->type == SVt_float || op->type == OP_DivEq || op->type == OP_MultMultEq){
                         f1 = do_float(sv_a);
                         f2 = do_float(sv_b);
                         if(op->type == OP_PlusEq){
@@ -4137,6 +4166,34 @@ void SV_refdec(struct SV* sv){
         }
     }
     return ;
+}
+
+void dump_parse_stack(struct TOK* stack, int i_top, struct TOK cur, char* s){
+    int i;
+
+    printf("  stack: ");
+    for(i=0; i<i_top; i++){
+        if(stack[i].type == T_BOC){
+            printf("T_BOC%c, ", stack[i].value.n);
+        }
+        else if(stack[i].type == T_EOC){
+            printf("T_EOC%c, ", stack[i].value.n);
+        }
+        else if(stack[i].type == T_ATOM){
+            printf("[%s], ", get_OP_name(stack[i].value.op->type));
+        }
+        else{
+            printf("%s, ", get_T_name(stack[i].type));
+        }
+    }
+    if(s){
+        printf("cur: %s\n", get_T_name(cur.type));
+        printf("  src: [");
+        puts(s);
+    }
+    else{
+        puts("");
+    }
 }
 
 char* f_skip_spaces(char* s){
@@ -4401,31 +4458,6 @@ char* f_get_str_qq(char* s, struct OP ** p_op){
         *p_op = f_parse_str_qq(s2, 0);
     }
     return s;
-}
-
-void dump_parse_stack(struct TOK* stack, int i_top, struct TOK cur, char* s){
-    int i;
-
-    printf("  stack: ");
-    for(i=0; i<i_top; i++){
-        if(stack[i].type == T_BOC){
-            printf("T_BOC%c, ", stack[i].value.n);
-        }
-        else if(stack[i].type == T_EOC){
-            printf("T_EOC%c, ", stack[i].value.n);
-        }
-        else if(stack[i].type == T_ATOM){
-            printf("[%s], ", get_OP_name(stack[i].value.op->type));
-        }
-        else{
-            printf("%s, ", get_T_name(stack[i].type));
-        }
-    }
-    printf("cur: %s\n", get_T_name(cur.type));
-    if(s){
-        printf("  src: [");
-        puts(s);
-    }
 }
 
 char* f_scan_word(char* s){
@@ -4920,6 +4952,18 @@ struct OP* f_new_op(int tn_type, struct OP* op_a, struct OP* op_b){
     op->left.op = op_a;
     op->right.op = op_b;
     return op;
+}
+
+char * get_T_name(int n_type){
+    int tn_op;
+
+    tn_op = n_type >> 8;
+    if(tn_op){
+        return T_op_names[tn_op-1];
+    }
+    else{
+        return "T_ATOM";
+    }
 }
 
 struct CV* CV_close(struct OP* op_block){
@@ -6288,18 +6332,6 @@ char* f_get_v_string(char* s, struct SV* sv){
     }
     SV_append_s(sv, (char*)pc_buf, n);
     return s;
-}
-
-char * get_T_name(int n_type){
-    int tn_op;
-
-    tn_op = n_type >> 8;
-    if(tn_op){
-        return T_op_names[tn_op-1];
-    }
-    else{
-        return "T_ATOM";
-    }
 }
 
 char* f_scan_delim_quick(char* s){
