@@ -50,6 +50,12 @@ subcode: _autoload
 
 #---- each compile creates a file scope
 subcode: compile
+    $call compile_begin
+    BLOCK
+    # need save it so run sub can reference it
+    g_file_scopes.$push g_local, g_local_len, g_local_size
+
+subcode: compile_begin
     g_local.$new
     # reserve index 0
     g_local.$grow 1
@@ -59,10 +65,7 @@ subcode: compile
     stash_global = g_stashes[0]
     cur_file_scope = g_file_scopes_len
 
-    BLOCK
-    # need save it so run sub can reference it
-    g_file_scopes.$push g_local, g_local_len, g_local_size
-
+# --------------
 subcode: run(cv)
     cur_file_scope = $(cv)->i_file
     $(set:da=$1,$1_len,$1_size)
@@ -83,7 +86,7 @@ subcode: add_local(i_var, name, len)
     $(if:0)
         stash_local.$set $(name), $(len), $(i_var)
     $(else)
-        $call add_local_name, $(name), $(len), $(i_var)
+        f_add_local_name($(name), $(len), $(i_var))
 
     $call @debug_add_local
 
@@ -94,12 +97,12 @@ subcode:: _autoload
     $global struct strpool local_names
     $global darray local_vars: int
 
-subcode: add_local_name(name, len, i_var)
-    i_str = f_addto_strpool(&local_names, $(name), $(len))
+fncode: f_add_local_name(s_name, n, i_var)
+    i_str = f_addto_strpool(&local_names, s_name, n)
     local_vars.$push i_str
-    local_vars.$push $(i_var)
+    local_vars.$push i_var
 
-subcode: commit_local_names
+fncode: f_commit_local_names
     # $print "commit_local_names: %d", local_vars_len/2
     $if local_vars_len>0
         p_strpool = &local_names
@@ -111,7 +114,8 @@ subcode: commit_local_names
 
 subcode:: pre_reduce
     $if cur.type == T_Semi
-        $call @commit_local_names
+        f_commit_local_names()
+
 #----------------------------------------------- 
 fncode: find_global(s_name)
     # assume s_name is null-terminated

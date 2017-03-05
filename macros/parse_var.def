@@ -7,7 +7,7 @@ macros:
 
 subcode:: parse_keyword_other
     $elif tn_word == WORD_my || tn_word==WORD_our
-        $local n_in_my
+        $local n_in_my = 0
         n_in_my = tn_word # reset at reduction
         $call set_cur, T_MY, tn_word
         goto try_reduce

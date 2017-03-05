@@ -99,6 +99,9 @@ subcode: run_sub
         i_file_scope_save=-1
         $if cv->i_file != cur_file_scope
             i_file_scope_save = cur_file_scope
+            $local struct call_stack_entry cur_stack_save
+            cur_stack_save = $(da:g_local)
+
             cur_file_scope = cv->i_file
             $(da:g_local) = g_file_scopes[cur_file_scope]
             $call @debug_file_scope
@@ -108,7 +111,7 @@ subcode: run_sub
 
         $if i_file_scope_save>=0
             cur_file_scope = i_file_scope_save
-            $(da:g_local) = g_file_scopes[cur_file_scope]
+            $(da:g_local) = cur_stack_save
             $call @debug_file_scope
 
     subcode: check_cv_scope
