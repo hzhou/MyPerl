@@ -21,11 +21,11 @@ for(my $i=0;$i<2;$i++){
 print "a: $a\n";
 
 my $a=1;
-print "a=1; b=a+++++a\n";
+print "a=1; b=a++ + ++a\n";
 my $b = $a+++++$a;
 print "a:$a, b:$b\n";
 
 my $a=1;
-print "a=1; b=++a+++a\n";
+print "a=1; b=++a + ++a\n";
 my $b = ++$a + ++$a;
 print "a:$a, b:$b\n";
