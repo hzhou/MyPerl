@@ -1,0 +1,13 @@
+page: test_recurse
+    $(if:1)
+        $call test_binary
+
+subcode: test_binary
+    $(for:1,2,3,4,37)
+        print "$1: ", binary($1), "\n"
+
+    $sub binary($n)
+        return $n if $n==0 || $n==1
+        my $k= int($n/2)
+        my $b = $n%2
+        return binary($k).$b
