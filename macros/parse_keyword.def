@@ -3,7 +3,7 @@ subcode:: define_ops
     $map define_op, FN_LIST, FN_1
 
 subcode: parse_keyword_cases
-    s = f_skip_simple_spaces(s)
+    $call skip_spaces
     $if tn_word<WORD_OPERATOR
         tn_op = keyword_op(s2)
         $call set_cur, tn_op, 0

@@ -7,7 +7,7 @@ subcode:: define_ops
 #----------------------------------------------- 
 subcode:: parse_keyword_other
     $elif tn_word == WORD_package
-        s=f_skip_simple_spaces(s)
+        $call skip_spaces
         $if isword1st(*s)
             $call scan_word, 1
             $if n+2<$(MAX_PATH)
@@ -23,7 +23,7 @@ subcode:: parse_keyword_other
             $call error, "package"
 
     $elif tn_word == WORD_use || tn_word==WORD_no
-        s=f_skip_simple_spaces(s)
+        $call skip_spaces
         $if isdigit(s[0]) ||  (s[0]=='v' && isdigit(s[1]))
             $call scan_version
         $elif isword1st(s[0])
@@ -38,7 +38,7 @@ subcode:: parse_keyword_other
         goto lexer
 
     subcode: skip_semi
-        s=f_skip_spaces(s)
+        $call skip_spaces
         $if *s==';'
             s++
         $else
@@ -54,7 +54,7 @@ subcode:: parse_keyword_other
 #----------------------------------------------- 
 subcode:: check_use_special(use)
     $if s2 $eq "lib"
-        s=f_skip_simple_spaces(s)
+        $call skip_spaces
         # only support simple string
         $if *s=~['"]
             $call @scan_simple_string

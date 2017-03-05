@@ -70,7 +70,7 @@ subcode: reduce_cv
     i_top-=2
 
     # need decide whether to append T_Semi
-    s = f_skip_spaces(s)
+    $call skip_spaces
 
     $(set:op_cv=cur.value.op)
     $if $(type:1)==$1 :||: T_Semi, T_BOC

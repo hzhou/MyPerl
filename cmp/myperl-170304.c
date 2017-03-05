@@ -78,33 +78,35 @@ typedef int bool;
 #define OP_DotEq 0x3042
 #define OP_or 0x3100
 #define OP_and 0x3200
-#define OP_GLOBAL 0x3300
-#define OP_LOCAL 0x3400
-#define OP_MY 0x3500
-#define OP_ASSIGN 0x3600
-#define OP_SUB 0x3700
-#define OP_Fcall 0x3800
-#define OP_IF 0x3900
-#define OP_ELIF 0x3a00
-#define OP_ELSE 0x3b00
-#define OP_IF_YES 0x3c00
-#define OP_IF_NO 0x3d00
-#define OP_while 0x3e00
-#define OP_for 0x3f00
-#define OP_join 0x4000
-#define OP_Re 0x4100
-#define OP_ReC 0x4200
-#define OP_ReMatch 0x4300
-#define OP_ReReplace 0x4400
-#define OP_VarMatch 0x4500
-#define OP_UNARY 0x4600
-#define OP_INC 0x4700
-#define OP_DEC 0x4800
-#define OP_FN_LIST 0x4900
-#define OP_FN_1 0x4a00
-#define OP_SIGIL 0x4b00
-#define OP_ARRAY_INDEX 0x4c00
-#define OP_HASH_INDEX 0x4d00
+#define OP_UMINUS 0x3300
+#define OP_NOT 0x3400
+#define OP_GLOBAL 0x3500
+#define OP_LOCAL 0x3600
+#define OP_MY 0x3700
+#define OP_ASSIGN 0x3800
+#define OP_SUB 0x3900
+#define OP_Fcall 0x3a00
+#define OP_IF 0x3b00
+#define OP_ELIF 0x3c00
+#define OP_ELSE 0x3d00
+#define OP_IF_YES 0x3e00
+#define OP_IF_NO 0x3f00
+#define OP_while 0x4000
+#define OP_for 0x4100
+#define OP_join 0x4200
+#define OP_Re 0x4300
+#define OP_ReC 0x4400
+#define OP_ReMatch 0x4500
+#define OP_ReReplace 0x4600
+#define OP_VarMatch 0x4700
+#define OP_UNARY 0x4800
+#define OP_INC 0x4900
+#define OP_DEC 0x4a00
+#define OP_FN_LIST 0x4b00
+#define OP_FN_1 0x4c00
+#define OP_SIGIL 0x4d00
+#define OP_ARRAY_INDEX 0x4e00
+#define OP_HASH_INDEX 0x4f00
 #define CVf_switch 1
 #define CVf_loop 2
 #define CVf_sub 3
@@ -118,7 +120,7 @@ typedef int bool;
 #define T_Semi 0x50c
 #define T_or 0x610
 #define T_and 0x714
-#define T_not 0x819
+#define T_not 0x81a
 #define T_FN_LIST 0x91e
 #define T_FN_GOTO 0xa1e
 #define T_Comma 0xb20
@@ -365,6 +367,7 @@ struct SV* SV_copy(struct SV* sv_ret, struct SV* sv);
 struct SV* eval_list(struct OP* op_a, struct OP* op_b, int tn_context, int tn_level);
 struct SV* get_svreg(int tn_type);
 int do_bool(struct SV* sv);
+void SV_to_int(struct SV* sv);
 struct SV* AV_get(struct AV* av, int i);
 struct SV * AV_shift(struct AV* av);
 void do_print(struct SV* sv_io, struct AV* av);
@@ -378,7 +381,6 @@ void do_assign(struct SV* sv_var, struct SV* sv_val);
 void SV_undef(struct SV* sv);
 void AV_free(struct AV* av);
 void SV_append_sv(struct SV* sv, struct SV* sv_b);
-void SV_to_int(struct SV* sv);
 float do_float(struct SV* sv);
 void SV_string_on_write(struct SV* sv);
 void SV_to_string(struct SV* sv);
@@ -397,11 +399,11 @@ struct CV* CV_new();
 int f_op_iter_count(struct OP* op, int tn_type);
 struct OP* f_op_iter_get(struct OP* op, int tn_type, struct OP* op_list);
 int get_copy();
+int sv_string_int(struct SV* sv);
 struct SV* SV_fmt(struct SV* sv, char char_fmt, int n_width, int n_prec, int n_flag);
 void AV_unshift(struct AV* av, int n);
 void AV_grow(struct AV* av, int n);
 struct HV* HV_new();
-int sv_string_int(struct SV* sv);
 double sv_string_float(struct SV* sv);
 int hex(char* s, int n);
 int utf(char* s, unsigned int code);
@@ -462,6 +464,8 @@ char* OP_names[] = {
     "OP_DotEq",
     "OP_or",
     "OP_and",
+    "OP_UMINUS",
+    "OP_NOT",
     "OP_GLOBAL",
     "OP_LOCAL",
     "OP_MY",
@@ -1044,6 +1048,9 @@ void run_repl(){
     struct SV* sv_str;
 
     i_stack_top = 0;
+    puts("");
+    puts("type \"quit\" to exit.");
+    puts("");
     while(1){
         s = readline("> ");
         if(!s || strcmp(s, "quit") == 0){
@@ -1217,7 +1224,7 @@ void SV_refinc(struct SV* sv){
 
 int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
     char* s;
-    struct TOK cur;
+    struct TOK cur = {0,0};
     struct OP* op_var;
     struct OP* op;
     struct SV* sv;
@@ -1335,6 +1342,9 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                 tn_word = my_word(s2, n);
                 if(tn_word){
                     s = f_skip_simple_spaces(s);
+                    if(!s){
+                        s = s_src_end;
+                    }
                     if(tn_word < WORD_OPERATOR){
                         tn_op = keyword_op(s2);
                         cur.type = tn_op;
@@ -1378,6 +1388,9 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                     }
                     else if(tn_word == WORD_package){
                         s = f_skip_simple_spaces(s);
+                        if(!s){
+                            s = s_src_end;
+                        }
                         if(isword1st(*s)){
                             s2 = s;
                             s = f_scan_word(s);
@@ -1398,7 +1411,10 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                                 g_stashes_len++;
                                 k = f_strhash_lookup_left(g_stashes[0], (unsigned char*)s_filename_buf, strlen(s_filename_buf));
                                 g_stashes[0]->p_val[k] = g_stashes_len - 1;
-                                s = f_skip_spaces(s);
+                                s = f_skip_simple_spaces(s);
+                                if(!s){
+                                    s = s_src_end;
+                                }
                                 if(*s == ';'){
                                     s++;
                                 }
@@ -1423,6 +1439,9 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                     }
                     else if(tn_word == WORD_use || tn_word == WORD_no){
                         s = f_skip_simple_spaces(s);
+                        if(!s){
+                            s = s_src_end;
+                        }
                         if(isdigit(s[0]) || (s[0] == 'v' && isdigit(s[1]))){
                             s2 = s;
                             if(*s == 'v'){
@@ -1444,6 +1463,9 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                             n = (int)(s - s2);
                             if(n==3 && strncmp(s2, "lib", 3)==0){
                                 s = f_skip_simple_spaces(s);
+                                if(!s){
+                                    s = s_src_end;
+                                }
                                 if((*s=='\'' || *s=='"')){
                                     char* s2;
                                     int n;
@@ -1498,7 +1520,10 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                             exit(0);
                         }
                         done_use:
-                        s = f_skip_spaces(s);
+                        s = f_skip_simple_spaces(s);
+                        if(!s){
+                            s = s_src_end;
+                        }
                         if(*s == ';'){
                             s++;
                         }
@@ -1561,6 +1586,9 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                 }
             }
             s = f_skip_simple_spaces(s);
+            if(!s){
+                s = s_src_end;
+            }
             tn_bos_op = 0;
             tn_unary_word = 0;
             if(stack[i_top-1].type == T_BOS){
@@ -1579,7 +1607,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                 stack[i_top-1].value.op->left.sv = sv;
                 goto lexer;
             }
-            else if(*s == '('){
+            else if(s && *s == '('){
                 sv = get_sv(SVt_string);
                 SV_append_s(sv, "&", 1);
                 SV_append_s(sv, s2, n);
@@ -1654,6 +1682,9 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                     char_sigil = stack[i_top-1].value.n;
                     if(char_sigil == '$'){
                         s = f_skip_simple_spaces(s);
+                        if(!s){
+                            s = s_src_end;
+                        }
                         if(*s == '{'){
                             ts_var_buf[0] = '%';
                         }
@@ -1757,7 +1788,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                     goto do_shift;
                 }
             }
-            else if(*s == ':'){
+            else if(s && *s == ':'){
                 if(stack[i_top-1].type == T_BOC || stack[i_top-1].type == T_Semi){
                     if(s2 + n < s){
                         s2[n] = ':';
@@ -1769,7 +1800,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                     goto lexer;
                 }
             }
-            if(s[0]=='=' && s[1]=='>'){
+            if(s && strncmp(s, "=>", 2) == 0){
                 sv = sv_from_s(s2, n);
                 cur.type = T_ATOM;
                 cur.value.op = get_op();
@@ -1778,7 +1809,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                 cur.value.op->right.sv = sv;
                 goto do_shift;
             }
-            else if(*s == '}' && stack[i_top-1].type == T_BOC){
+            else if(s && *s == '}' && stack[i_top-1].type == T_BOC){
                 sv = sv_from_s(s2, n);
                 cur.type = T_ATOM;
                 cur.value.op = get_op();
@@ -1862,9 +1893,14 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                     cur.value.n = '<';
                     goto do_shift;
                 }
-                else if(cur.type == T_EOF && i_top == 1){
-                    stack[0].type = T_ATOM;
-                    break;
+                else if(cur.type == T_EOF){
+                    if(i_top == 1){
+                        stack[0].type = T_ATOM;
+                        break;
+                    }
+                    else{
+                        break;
+                    }
                 }
                 else if((cur.type == T_EOC || cur.type == T_EOF) && stack[i_top-1].type == T_Semi){
                     i_top--;
@@ -2043,6 +2079,19 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                 }
                 else{
                     switch (stack[i_top-2].type){
+                        case T_UMINUS:
+                            op = get_op();
+                            op->type = OP_UMINUS;
+                            op->right.op = NULL;
+                            op->right.op = stack[i_top-1].value.op;
+                            break;
+                        case T_Emark:
+                        case T_not:
+                            op = get_op();
+                            op->type = OP_NOT;
+                            op->right.op = NULL;
+                            op->right.op = stack[i_top-1].value.op;
+                            break;
                         case T_PlusPlus:
                         case T_MinusMinus:
                             if(stack[i_top-2].type == T_PlusPlus){
@@ -2640,7 +2689,10 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                         cur.value.op->right.op = NULL;
                         cur.value.op->right.cv = cv;
                         i_top -= 2;
-                        s = f_skip_spaces(s);
+                        s = f_skip_simple_spaces(s);
+                        if(!s){
+                            s = s_src_end;
+                        }
                         if(stack[i_top-1].type==T_Semi ||stack[i_top-1].type==T_BOC ){
                             stack[i_top++] = cur;
                             cur.type = T_Semi;
@@ -2849,6 +2901,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
 struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
     struct SV* sv;
     struct SV* sv_ret;
+    struct SV* sv_a;
     int tn_word;
     struct SV* sv_right;
     struct AV* av;
@@ -2864,7 +2917,6 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
     int n;
     int i_var;
     struct SV* sv_var;
-    struct SV* sv_a;
     struct HV* hv;
     struct SV* sv_b;
     struct SV* sv_key;
@@ -2961,6 +3013,25 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 }
                 return eval_op(op->right.op, 1, tn_level + 1);
             }
+        case OP_UMINUS:
+            sv_a = eval_op(op->right.op, 1, tn_level + 1);
+            SV_to_int(sv_a);
+            sv_a->value.n = -sv_a->value.n;
+            return sv_a;
+        case OP_NOT:
+            sv_a = eval_op(op->right.op, 1, tn_level + 1);
+            if(do_bool(sv_a)){
+                sv_ret = sv_FALSE;
+            }
+            else{
+                sv_ret = sv_TRUE;
+            }
+            if(sv_a && (sv_a->flag & 3) == SVf_register){
+                SV_refdec(sv_a);
+                sv_a->flag = 0;
+                n_svreg--;
+            }
+            return sv_ret;
         case OP_UNARY:
             tn_word = op->left.n;
             if(tn_word < WORD_FN_LIST){
@@ -4351,8 +4422,10 @@ void dump_parse_stack(struct TOK* stack, int i_top, struct TOK cur, char* s){
         }
     }
     printf("cur: %s\n", get_T_name(cur.type));
-    printf("  src: [");
-    puts(s);
+    if(s){
+        printf("  src: [");
+        puts(s);
+    }
 }
 
 char* f_scan_word(char* s){
@@ -4774,6 +4847,7 @@ char* f_scan_operator(char* s, int* p_id){
       case ',': *p_id = T_Comma; return s+1;
       case '!':
         if(s[1]=='='){*p_id = T_EmarkEq;return s+2;}
+        else{*p_id = T_Emark;return s+1;}
         break;
       case '&':
         if(s[1]=='='){*p_id = T_AndEq;return s+2;}
@@ -4828,6 +4902,7 @@ char* f_scan_operator(char* s, int* p_id){
         if(s[1]=='='){*p_id = T_OrEq;return s+2;}
         else{*p_id = T_Or;return s+1;}
         break;
+      case '~': *p_id = T_Tlide;return s+1;
     }
     *p_id = 0;
     return s;
@@ -5210,6 +5285,38 @@ int do_bool(struct SV* sv){
     }
 }
 
+void SV_to_int(struct SV* sv){
+    double f;
+    struct SV* sv_tmp;
+    int n;
+
+    if(sv->type == SVt_int){
+        return;
+    }
+    else if(sv->type == SVt_float){
+        f = sv->value.f;
+        sv->type = SVt_int;
+        sv->value.n = (int)f;
+    }
+    else if(sv->type == SVt_string){
+        sv_tmp = get_svreg(SVt_undef);
+        sv_tmp->type = SVt_string;
+        sv_tmp->refcnt = 1;
+        memset(&sv_tmp->value, 0, sizeof(sv_tmp->value));
+        sv_tmp->value.S.s = sv->value.S.s;
+        sv_tmp->value.S.n = sv->value.S.n;
+        sv_tmp->value.S.size = sv->value.S.size;
+        n = sv_string_int(sv);
+        sv->type = SVt_int;
+        sv->value.n = n;
+        if(sv_tmp && (sv_tmp->flag & 3) == SVf_register){
+            SV_refdec(sv_tmp);
+            sv_tmp->flag = 0;
+            n_svreg--;
+        }
+    }
+}
+
 struct SV* AV_get(struct AV* av, int i){
     int j;
 
@@ -5498,38 +5605,6 @@ void SV_append_sv(struct SV* sv, struct SV* sv_b){
         if(sv_s_b && (sv_s_b->flag & 3) == SVf_register){
             SV_refdec(sv_s_b);
             sv_s_b->flag = 0;
-            n_svreg--;
-        }
-    }
-}
-
-void SV_to_int(struct SV* sv){
-    double f;
-    struct SV* sv_tmp;
-    int n;
-
-    if(sv->type == SVt_int){
-        return;
-    }
-    else if(sv->type == SVt_float){
-        f = sv->value.f;
-        sv->type = SVt_int;
-        sv->value.n = (int)f;
-    }
-    else if(sv->type == SVt_string){
-        sv_tmp = get_svreg(SVt_undef);
-        sv_tmp->type = SVt_string;
-        sv_tmp->refcnt = 1;
-        memset(&sv_tmp->value, 0, sizeof(sv_tmp->value));
-        sv_tmp->value.S.s = sv->value.S.s;
-        sv_tmp->value.S.n = sv->value.S.n;
-        sv_tmp->value.S.size = sv->value.S.size;
-        n = sv_string_int(sv);
-        sv->type = SVt_int;
-        sv->value.n = n;
-        if(sv_tmp && (sv_tmp->flag & 3) == SVf_register){
-            SV_refdec(sv_tmp);
-            sv_tmp->flag = 0;
             n_svreg--;
         }
     }
@@ -6322,6 +6397,22 @@ int get_copy(){
     return i_svcopy;
 }
 
+int sv_string_int(struct SV* sv){
+    struct SV* sv_tmp;
+    int n;
+
+    sv_tmp = get_svreg(SVt_undef);
+    sv->value.S.s[sv->value.S.n] = '\0';
+    f_get_number(sv->value.S.s, sv_tmp);
+    n = do_int(sv_tmp);
+    if(sv_tmp && (sv_tmp->flag & 3) == SVf_register){
+        SV_refdec(sv_tmp);
+        sv_tmp->flag = 0;
+        n_svreg--;
+    }
+    return n;
+}
+
 struct SV* SV_fmt(struct SV* sv, char char_fmt, int n_width, int n_prec, int n_flag){
     int n;
     struct SV* sv_ret;
@@ -6392,22 +6483,6 @@ struct HV* HV_new(){
     hv=(struct HV*)calloc(1, sizeof(struct HV));
     hv->n_val_size = sizeof(struct SV*);
     return hv;
-}
-
-int sv_string_int(struct SV* sv){
-    struct SV* sv_tmp;
-    int n;
-
-    sv_tmp = get_svreg(SVt_undef);
-    sv->value.S.s[sv->value.S.n] = '\0';
-    f_get_number(sv->value.S.s, sv_tmp);
-    n = do_int(sv_tmp);
-    if(sv_tmp && (sv_tmp->flag & 3) == SVf_register){
-        SV_refdec(sv_tmp);
-        sv_tmp->flag = 0;
-        n_svreg--;
-    }
-    return n;
 }
 
 double sv_string_float(struct SV* sv){

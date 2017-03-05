@@ -107,10 +107,18 @@ subcode: parse_frame
                 $call error, "unexpected unary operator"
         $call @resolve_op_other
 
+    # -------------------------
+    subcode: skip_spaces
+        s=f_skip_simple_spaces(s)
+        $if !s
+            s=s_src_end
 #---------------------------------------- 
 subcode: resolve_op_op
-    $case $(T:EOF) && i_top==1
-        # empty input
-        stack[0].type = T_ATOM
-        break
+    $case $(T:EOF)
+        $if i_top==1
+            # empty input
+            stack[0].type = T_ATOM
+            break
+        $else
+            break
 

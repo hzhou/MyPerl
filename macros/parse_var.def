@@ -71,7 +71,7 @@ subcode:: parse_bareword
         # ------------------
         subcode: set_sigil
             $if char_sigil=='$'
-                s=f_skip_simple_spaces(s)
+                $call skip_spaces
                 $if *s=='{'
                     $(s)[0]='%'
                 $elif *s=='['
