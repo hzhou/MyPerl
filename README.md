@@ -31,6 +31,6 @@ I am open to add branches or forks for production branch(es) that aim for full c
     
 ### Status
 
-Toy.
+Toy. Check tests/ folder for currently implemented features.
 
 
