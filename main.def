@@ -28,7 +28,6 @@ include: macros/do_switch.def
 include: macros/do_loop.def
 
 include: macros/do_print.def
-include: macros/do_join.def
 include: macros/do_stdio.def
 include: macros/do_regex.def
 

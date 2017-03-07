@@ -1,11 +1,9 @@
 ### For Impatient
     cd cmp
-    gcc -g -o myperl myperl-170303.c -lm -lpcre
-    -- create your test script as t.pl
-    ./myperl 
+    gcc -g -o myperl myperl.c -lm -lpcre -lreadline
+    ./myperl [script.pl]
 
-    [just added repl!]
-    gcc -g -o myperl myperl-170304.c -lm -lpcre -lreadline
+    -- to run REPL:
     ./myperl
 
 ### For Curious

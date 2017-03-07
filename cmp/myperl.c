@@ -4,6 +4,7 @@
 #include <pcre.h>
 #include <ctype.h>
 #include <stdio.h>
+#include "sys/stat.h"
 #include "readline/readline.h"
 #include "readline/history.h"
 #include <stdint.h>
@@ -31,6 +32,7 @@ typedef int bool;
 #define OP_BREAK 0x800
 #define OP_RETURN 0x900
 #define OP_REQUIRE 0xa00
+#define OP_list 0xb00
 #define OPf_bin 0x1
 #define OPf_bin_assign 0x2
 #define OPf_bin_rel 0x4
@@ -38,76 +40,76 @@ typedef int bool;
 #define OPf_int 0x20
 #define Opf_string 0x40
 #define Opf_other 0x80
-#define OP_Plus 0xb11
-#define OP_Minus 0xc11
-#define OP_Mult 0xd11
-#define OP_Div 0xe11
-#define OP_MultMult 0xf11
-#define OP_Mod 0x1031
-#define OP_Or 0x1131
-#define OP_And 0x1231
-#define OP_Ctrl 0x1331
-#define OP_GtGt 0x1431
-#define OP_LtLt 0x1531
-#define OP_Dot 0x1641
-#define OP_x 0x1741
-#define OP_EqEq 0x1815
-#define OP_EmarkEq 0x1915
-#define OP_Lt 0x1a15
-#define OP_Gt 0x1b15
-#define OP_LtEq 0x1c15
-#define OP_GtEq 0x1d15
-#define OP_LtEqGt 0x1e15
-#define OP_eq 0x1f45
-#define OP_ne 0x2045
-#define OP_lt 0x2145
-#define OP_gt 0x2245
-#define OP_le 0x2345
-#define OP_ge 0x2445
-#define OP_cmp 0x2545
-#define OP_PlusEq 0x2612
-#define OP_MinusEq 0x2712
-#define OP_MultEq 0x2812
-#define OP_DivEq 0x2912
-#define OP_MultMultEq 0x2a12
-#define OP_ModEq 0x2b32
-#define OP_OrEq 0x2c32
-#define OP_AndEq 0x2d32
-#define OP_CtrlEq 0x2e32
-#define OP_GtGtEq 0x2f32
-#define OP_LtLtEq 0x3032
-#define OP_DotEq 0x3142
-#define OP_or 0x3200
-#define OP_and 0x3300
-#define OP_UMINUS 0x3400
-#define OP_NOT 0x3500
-#define OP_GLOBAL 0x3600
-#define OP_LOCAL 0x3700
-#define OP_MY 0x3800
-#define OP_ASSIGN 0x3900
-#define OP_SUB 0x3a00
-#define OP_Fcall 0x3b00
-#define OP_IF 0x3c00
-#define OP_ELIF 0x3d00
-#define OP_ELSE 0x3e00
-#define OP_IF_YES 0x3f00
-#define OP_IF_NO 0x4000
-#define OP_while 0x4100
-#define OP_for 0x4200
-#define OP_join 0x4300
-#define OP_Re 0x4400
-#define OP_ReC 0x4500
-#define OP_ReMatch 0x4600
-#define OP_ReReplace 0x4700
-#define OP_VarMatch 0x4800
-#define OP_UNARY 0x4900
-#define OP_INC 0x4a00
-#define OP_DEC 0x4b00
-#define OP_FN_LIST 0x4c00
-#define OP_FN_1 0x4d00
-#define OP_SIGIL 0x4e00
-#define OP_ARRAY_INDEX 0x4f00
-#define OP_HASH_INDEX 0x5000
+#define OP_Plus 0xc11
+#define OP_Minus 0xd11
+#define OP_Mult 0xe11
+#define OP_Div 0xf11
+#define OP_MultMult 0x1011
+#define OP_Mod 0x1131
+#define OP_Or 0x1231
+#define OP_And 0x1331
+#define OP_Ctrl 0x1431
+#define OP_GtGt 0x1531
+#define OP_LtLt 0x1631
+#define OP_Dot 0x1741
+#define OP_x 0x1841
+#define OP_EqEq 0x1915
+#define OP_EmarkEq 0x1a15
+#define OP_Lt 0x1b15
+#define OP_Gt 0x1c15
+#define OP_LtEq 0x1d15
+#define OP_GtEq 0x1e15
+#define OP_LtEqGt 0x1f15
+#define OP_eq 0x2045
+#define OP_ne 0x2145
+#define OP_lt 0x2245
+#define OP_gt 0x2345
+#define OP_le 0x2445
+#define OP_ge 0x2545
+#define OP_cmp 0x2645
+#define OP_PlusEq 0x2712
+#define OP_MinusEq 0x2812
+#define OP_MultEq 0x2912
+#define OP_DivEq 0x2a12
+#define OP_MultMultEq 0x2b12
+#define OP_ModEq 0x2c32
+#define OP_OrEq 0x2d32
+#define OP_AndEq 0x2e32
+#define OP_CtrlEq 0x2f32
+#define OP_GtGtEq 0x3032
+#define OP_LtLtEq 0x3132
+#define OP_DotEq 0x3242
+#define OP_or 0x3300
+#define OP_and 0x3400
+#define OP_UMINUS 0x3500
+#define OP_NOT 0x3600
+#define OP_GLOBAL 0x3700
+#define OP_LOCAL 0x3800
+#define OP_MY 0x3900
+#define OP_ASSIGN 0x3a00
+#define OP_SUB 0x3b00
+#define OP_Fcall 0x3c00
+#define OP_IF 0x3d00
+#define OP_ELIF 0x3e00
+#define OP_ELSE 0x3f00
+#define OP_IF_quick 0x4000
+#define OP_IF_YES 0x4100
+#define OP_IF_NO 0x4200
+#define OP_while 0x4300
+#define OP_for 0x4400
+#define OP_Re 0x4500
+#define OP_ReC 0x4600
+#define OP_ReMatch 0x4700
+#define OP_ReReplace 0x4800
+#define OP_VarMatch 0x4900
+#define OP_UNARY 0x4a00
+#define OP_INC 0x4b00
+#define OP_DEC 0x4c00
+#define OP_FN_LIST 0x4d00
+#define OP_FN_1 0x4e00
+#define OP_SIGIL 0x4f00
+#define OP_ARRAY_INDEX 0x5000
+#define OP_HASH_INDEX 0x5100
 #define CVf_switch 1
 #define CVf_loop 2
 #define CVf_sub 3
@@ -116,79 +118,81 @@ typedef int bool;
 #define T_ATOM 1
 #define T_BOC 0x106
 #define T_BOS 0x206
-#define T_EOC 0x30b
-#define T_EOF 0x40b
-#define T_Semi 0x50c
-#define T_or 0x610
-#define T_and 0x714
-#define T_not 0x81a
-#define T_FN_LIST 0x91e
-#define T_FN_GOTO 0xa1e
-#define T_Comma 0xb20
-#define T_Eq 0xc25
-#define T_PlusEq 0xd25
-#define T_MinusEq 0xe25
-#define T_MultEq 0xf25
-#define T_DivEq 0x1025
-#define T_ModEq 0x1125
-#define T_DotEq 0x1225
-#define T_OrEq 0x1325
-#define T_AndEq 0x1425
-#define T_CtrlEq 0x1525
-#define T_GtGtEq 0x1625
-#define T_LtLtEq 0x1725
-#define T_MultMultEq 0x1825
-#define T_Colon 0x1929
-#define T_Qmark 0x1a29
-#define T_DotDot 0x1b2c
-#define T_OrOr 0x1c30
-#define T_AndAnd 0x1d34
-#define T_Or 0x1e38
-#define T_Ctrl 0x1f38
-#define T_And 0x203c
-#define T_EqEq 0x2140
-#define T_EmarkEq 0x2240
-#define T_LtEqGt 0x2340
-#define T_eq 0x2440
-#define T_ne 0x2540
-#define T_cmp 0x2640
-#define T_Lt 0x2744
-#define T_Gt 0x2844
-#define T_LtEq 0x2944
-#define T_GtEq 0x2a44
-#define T_lt 0x2b44
-#define T_gt 0x2c44
-#define T_le 0x2d44
-#define T_ge 0x2e44
-#define T_FN_1 0x2f4a
-#define T_GtGt 0x304c
-#define T_LtLt 0x314c
-#define T_Plus 0x3250
-#define T_Minus 0x3350
-#define T_Dot 0x3450
-#define T_Mult 0x3554
-#define T_Div 0x3654
-#define T_Mod 0x3754
-#define T_x 0x3854
-#define T_EqTlide 0x3958
-#define T_UMINUS 0x3a5e
-#define T_Tlide 0x3b5e
-#define T_Emark 0x3c5e
-#define T_UAMPER 0x3d5e
-#define T_MultMult 0x3e61
-#define T_PlusPlus 0x3f66
-#define T_MinusMinus 0x4066
-#define T_MinusGt 0x4168
-#define T_UNARY 0x426e
-#define T_SIGIL 0x436e
-#define T_MY 0x446e
+#define T_EOF 0x30b
+#define T_EOC 0x40b
+#define T_EOS 0x50b
+#define T_BOS_HEAD 0x60e
+#define T_BOS_TEMP 0x710
+#define T_or 0x814
+#define T_and 0x918
+#define T_not 0xa1e
+#define T_FN_LIST 0xb22
+#define T_FN_GOTO 0xc22
+#define T_Comma 0xd24
+#define T_Eq 0xe29
+#define T_PlusEq 0xf29
+#define T_MinusEq 0x1029
+#define T_MultEq 0x1129
+#define T_DivEq 0x1229
+#define T_ModEq 0x1329
+#define T_DotEq 0x1429
+#define T_OrEq 0x1529
+#define T_AndEq 0x1629
+#define T_CtrlEq 0x1729
+#define T_GtGtEq 0x1829
+#define T_LtLtEq 0x1929
+#define T_MultMultEq 0x1a29
+#define T_Colon 0x1b2d
+#define T_Qmark 0x1c2d
+#define T_DotDot 0x1d30
+#define T_OrOr 0x1e34
+#define T_AndAnd 0x1f38
+#define T_Or 0x203c
+#define T_Ctrl 0x213c
+#define T_And 0x2240
+#define T_EqEq 0x2344
+#define T_EmarkEq 0x2444
+#define T_LtEqGt 0x2544
+#define T_eq 0x2644
+#define T_ne 0x2744
+#define T_cmp 0x2844
+#define T_Lt 0x2948
+#define T_Gt 0x2a48
+#define T_LtEq 0x2b48
+#define T_GtEq 0x2c48
+#define T_lt 0x2d48
+#define T_gt 0x2e48
+#define T_le 0x2f48
+#define T_ge 0x3048
+#define T_FN_1 0x314e
+#define T_GtGt 0x3250
+#define T_LtLt 0x3350
+#define T_Plus 0x3454
+#define T_Minus 0x3554
+#define T_Dot 0x3654
+#define T_Mult 0x3758
+#define T_Div 0x3858
+#define T_Mod 0x3958
+#define T_x 0x3a58
+#define T_EqTlide 0x3b5c
+#define T_UMINUS 0x3c62
+#define T_Tlide 0x3d62
+#define T_Emark 0x3e62
+#define T_UAMPER 0x3f62
+#define T_MultMult 0x4065
+#define T_PlusPlus 0x416a
+#define T_MinusMinus 0x426a
+#define T_MinusGt 0x436c
+#define T_UNARY 0x4472
+#define T_SIGIL 0x4572
+#define T_MY 0x4672
 #define T_EqGt T_Comma
 #define isword(c) (isalnum(c) || c=='_')
 #define isword1st(c) (isalpha(c) || c=='_')
 #define isoct(c) (c>='0' && c<='8')
 
 enum {SVt_undef, SVt_int, SVt_float,SVt_BASIC,SVt_av, SVt_hv, SVt_sv, SVt_string, SVt_cv, SVt_goto, SVt_io, SVt_regex};
-enum WORD {WORD_,WORD_eq,WORD_ne,WORD_le,WORD_ge,WORD_lt,WORD_gt,WORD_cmp,WORD_or,WORD_and,WORD_not,WORD_x,WORD_OPERATOR,WORD_goto,WORD_next,WORD_last,WORD_redo,WORD_return,WORD_FN_GOTO,WORD_print,WORD_printf,WORD_warn,WORD_die,WORD_join,WORD_open,WORD_FN_LIST,WORD_uc,WORD_lc,WORD_ucfirst,WORD_lcfirst,WORD_quotemeta,WORD_close,WORD_fread,WORD_FN_1,WORD_use,WORD_require,WORD_no,WORD_package,WORD_sub,WORD_if,WORD_elsif,WORD_else,WORD_while,WORD_for,WORD_my,WORD_our,WORD_local};
+enum WORD {WORD_,WORD_eq,WORD_ne,WORD_le,WORD_ge,WORD_lt,WORD_gt,WORD_cmp,WORD_or,WORD_and,WORD_not,WORD_x,WORD_OPERATOR,WORD_goto,WORD_next,WORD_last,WORD_redo,WORD_return,WORD_FN_GOTO,WORD_join,WORD_print,WORD_printf,WORD_warn,WORD_die,WORD_open,WORD_FN_LIST,WORD_uc,WORD_lc,WORD_ucfirst,WORD_lcfirst,WORD_quotemeta,WORD_int,WORD_close,WORD_fread,WORD_FN_1,WORD_use,WORD_require,WORD_no,WORD_package,WORD_sub,WORD_if,WORD_elsif,WORD_else,WORD_while,WORD_for,WORD_my,WORD_our,WORD_local};
 
 struct AV {
     struct SV* * p_array;
@@ -326,21 +330,29 @@ void f_resize_strpool_n(struct strpool* p_strpool, int n_size);
 int f_addto_strpool(struct strpool* p_strpool, char* s, int n);
 void f_free_strpool(struct strpool* p_strpool);
 int f_strhash_lookup(void* hash, unsigned char* pc_key, int keylen);
+int file_exist(char* s_file);
 struct SV* get_sv(int tn_type);
 struct SV* sv_from_s(char* s, int n);
 int f_strhash_lookup_left(void* hash, unsigned char* pc_key, int keylen);
 struct AV* AV_new();
 void AV_push(struct AV* av, struct SV* sv_value);
+void run_script(char* s_file);
 void run_repl();
 void SV_resize(struct SV* sv, int n);
 void f_strhash_resize(void * hash, int n_size);
 void AV_resize(struct AV* av, int n);
 void SV_refinc(struct SV* sv);
+struct CV * f_parse_script(char* s_file);
+char* find_module_file(char* s_module_name);
+struct SV* run_cv(struct CV* cv, int tn_context, int tn_level);
 int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top);
 struct SV* eval_op(struct OP* op, int tn_context, int tn_level);
-void* do_string(struct SV* sv);
+void f_dump_sv(struct SV* sv);
 void SV_refdec(struct SV* sv);
 void dump_parse_stack(struct TOK* stack, int i_top, struct TOK cur, char* s);
+void f_commit_local_names();
+void CV_begin();
+struct CV* CV_close(struct OP* op_block);
 char* f_skip_spaces(char* s);
 char* f_get_regex(char* s, struct OP ** p_op);
 struct OP* get_op();
@@ -353,55 +365,54 @@ int my_word(char* s, int n);
 char* f_skip_simple_spaces(char* s);
 int keyword_op(char* s);
 char* f_scan_delim(char* s, char** p_str, int* pn_len);
-void CV_begin();
 void SV_append_s(struct SV* sv, char* s, int n);
 int find_global(char* s_name);
 int find_local(char* s_name);
+void f_add_local_name(char* s_name, int n, int i_var);
 struct OP* f_parse_var_special(char char_sigil, char* s);
 char* f_scan_operator(char* s, int* p_id);
-char* get_OP_name(int n_OP);
 struct OP* f_new_op(int tn_type, struct OP* op_a, struct OP* op_b);
-char * get_T_name(int n_type);
-struct CV* CV_close(struct OP* op_block);
-void f_flatten_op_list(struct OP* op, int tn_type);
+void f_flatten_op_list(struct OP* op, int tn_type, int tn_new_type);
 struct OP* get_op_list(int n);
-struct SV* run_cv(struct CV* cv, int tn_context, int tn_level);
-struct SV* SV_copy(struct SV* sv_ret, struct SV* sv);
-struct SV* eval_list(struct OP* op_a, struct OP* op_b, int tn_context, int tn_level);
+char* get_OP_name(int n_OP);
+char * get_T_name(int n_type);
+struct SV* eval_list(struct OP* op, int tn_context, int tn_level);
+void* SV_copy(struct SV* sv_ret, struct SV* sv);
 struct SV* get_svreg(int tn_type);
 int do_bool(struct SV* sv);
 void SV_to_int(struct SV* sv);
-struct SV* AV_get(struct AV* av, int i);
+void* do_string(struct SV* sv);
 struct SV * AV_shift(struct AV* av);
+void SV_append_sv(struct SV* sv, struct SV* sv_b);
+int do_int(struct SV* sv);
+struct SV* AV_get(struct AV* av, int i);
 void do_print(struct SV* sv_io, struct AV* av);
 void do_printf(struct SV* sv_io, struct AV* av);
 char * get_WORD_name(int id);
 struct SV* HV_get(struct HV* hv, char* s_key, int len);
 void HV_set(struct HV* hv, char* s_key, int len, struct SV* sv_value);
-int do_int(struct SV* sv);
 void AV_set(struct AV* av, int i, struct SV* sv_value);
 void do_assign(struct SV* sv_var, struct SV* sv_val);
 void SV_undef(struct SV* sv);
 void AV_free(struct AV* av);
-void SV_append_sv(struct SV* sv, struct SV* sv_b);
 float do_float(struct SV* sv);
 void SV_string_on_write(struct SV* sv);
 void SV_to_string(struct SV* sv);
 void SV_to_float(struct SV* sv);
-void SV_append_i(struct SV* sv, int i);
-void SV_append_f(struct SV* sv, double f);
-char* get_SV_name(int n_type);
 void HV_free(struct HV* hv);
+struct CV* CV_new();
 char* f_load_src(char* s);
 char* f_skip_line(char* s);
 struct OP* f_parse_str_qq(char* s, bool is_regex);
 char* f_get_v_string(char* s, struct SV* sv);
 char* f_scan_delim_quick(char* s);
-struct CV* CV_new();
 int f_op_iter_count(struct OP* op, int tn_type);
 struct OP* f_op_iter_get(struct OP* op, int tn_type, struct OP* op_list);
 int get_copy();
 int sv_string_int(struct SV* sv);
+void SV_append_i(struct SV* sv, int i);
+void SV_append_f(struct SV* sv, double f);
+char* get_SV_name(int n_type);
 struct SV* SV_fmt(struct SV* sv, char char_fmt, int n_width, int n_prec, int n_flag);
 void AV_unshift(struct AV* av, int n);
 void AV_grow(struct AV* av, int n);
@@ -426,6 +437,7 @@ char* OP_names[] = {
     "OP_BREAK",
     "OP_RETURN",
     "OP_REQUIRE",
+    "OP_list",
     "OP_Plus",
     "OP_Minus",
     "OP_Mult",
@@ -478,11 +490,11 @@ char* OP_names[] = {
     "OP_IF",
     "OP_ELIF",
     "OP_ELSE",
+    "OP_IF_quick",
     "OP_IF_YES",
     "OP_IF_NO",
     "OP_while",
     "OP_for",
-    "OP_join",
     "OP_Re",
     "OP_ReC",
     "OP_ReMatch",
@@ -542,12 +554,97 @@ int n_regex_len;
 int regex_offs[30];
 int n_regex_caps;
 int n_debug = 0;
+char* WORD_names[] = {
+    "eq",
+    "ne",
+    "le",
+    "ge",
+    "lt",
+    "gt",
+    "cmp",
+    "or",
+    "and",
+    "not",
+    "x",
+    "OPERATOR",
+    "goto",
+    "next",
+    "last",
+    "redo",
+    "return",
+    "FN_GOTO",
+    "join",
+    "print",
+    "printf",
+    "warn",
+    "die",
+    "open",
+    "FN_LIST",
+    "uc",
+    "lc",
+    "ucfirst",
+    "lcfirst",
+    "quotemeta",
+    "int",
+    "close",
+    "fread",
+    "FN_1",
+    "use",
+    "require",
+    "no",
+    "package",
+    "sub",
+    "if",
+    "elsif",
+    "else",
+    "while",
+    "for",
+    "my",
+    "our",
+    "local",
+    NULL
+};
+struct SV* sv_TRUE;
+struct SV* sv_FALSE;
+struct SV* sv_EMPTY;
+int I_LIST_SEPARATOR;
+int I_at_INC;
+int I_at_ARG;
+int I_at_RET;
+int I_OFS;
+int I_STDIN;
+int I_STDOUT;
+int I_STDERR;
+int I_ARG;
+int I_PREMATCH;
+int I_POSTMATCH;
+int I_MATCH;
+int I_1;
+int I_2;
+int I_3;
+int I_4;
+int I_5;
+int I_6;
+int I_7;
+int I_8;
+int I_9;
+char* * modules = NULL;
+int modules_len = 0;
+int modules_size = 0;
+struct CV* * subs = NULL;
+int subs_len = 0;
+int subs_size = 0;
+FILE* file_src;
+char* s_src_end;
+char s_line_buffer[10000];
 char* T_op_names[] = {
     "T_BOC",
     "T_BOS",
-    "T_EOC",
     "T_EOF",
-    "T_Semi",
+    "T_EOC",
+    "T_EOS",
+    "T_BOS_HEAD",
+    "T_BOS_TEMP",
     "T_or",
     "T_and",
     "T_not",
@@ -613,87 +710,6 @@ char* T_op_names[] = {
     "T_MY",
     NULL
 };
-char* WORD_names[] = {
-    "eq",
-    "ne",
-    "le",
-    "ge",
-    "lt",
-    "gt",
-    "cmp",
-    "or",
-    "and",
-    "not",
-    "x",
-    "OPERATOR",
-    "goto",
-    "next",
-    "last",
-    "redo",
-    "return",
-    "FN_GOTO",
-    "print",
-    "printf",
-    "warn",
-    "die",
-    "join",
-    "open",
-    "FN_LIST",
-    "uc",
-    "lc",
-    "ucfirst",
-    "lcfirst",
-    "quotemeta",
-    "close",
-    "fread",
-    "FN_1",
-    "use",
-    "require",
-    "no",
-    "package",
-    "sub",
-    "if",
-    "elsif",
-    "else",
-    "while",
-    "for",
-    "my",
-    "our",
-    "local",
-    NULL
-};
-struct SV* sv_TRUE;
-struct SV* sv_FALSE;
-struct SV* sv_EMPTY;
-int I_LIST_SEPARATOR;
-int I_at_INC;
-int I_at_ARG;
-int I_OFS;
-int I_STDIN;
-int I_STDOUT;
-int I_STDERR;
-int I_ARG;
-int I_PREMATCH;
-int I_POSTMATCH;
-int I_MATCH;
-int I_1;
-int I_2;
-int I_3;
-int I_4;
-int I_5;
-int I_6;
-int I_7;
-int I_8;
-int I_9;
-char* * modules = NULL;
-int modules_len = 0;
-int modules_size = 0;
-struct CV* * subs = NULL;
-int subs_len = 0;
-int subs_size = 0;
-FILE* file_src;
-char* s_src_end;
-char s_line_buffer[10000];
 char s_src_buffer[1024+1];
 int n_src_extra = 0;
 
@@ -781,6 +797,7 @@ void f_free_strpool(struct strpool* p_strpool){
 }
 
 int main(int argc, char** argv){
+    char* s_script_file = NULL;
     struct SV* sv;
     int k;
     struct AV* av;
@@ -798,6 +815,15 @@ int main(int argc, char** argv){
     memset(g_global + g_global_len, 0, (1) * sizeof(*g_global));
     g_global_len++;
     svcopy[0] = 1;
+    if(argc == 2){
+        if(file_exist(argv[1])){
+            s_script_file = argv[1];
+        }
+    }
+    else if(argc > 2){
+        fprintf(stderr, "Usage: myperl [perl_script]\n");
+        exit(-1);
+    }
     sv_TRUE = get_sv(0);
     sv_TRUE->refcnt = -1;
     sv_FALSE = get_sv(0);
@@ -836,6 +862,13 @@ int main(int argc, char** argv){
     sv = &g_global[I_at_ARG];
     k = f_strhash_lookup_left(stash_global, (unsigned char*)"@ARG", 4);
     stash_global->p_val[k] = I_at_ARG;
+    av = AV_new();
+    sv->type = SVt_av;
+    sv->value.p = av;
+    I_at_RET = g_global_len++;
+    sv = &g_global[I_at_RET];
+    k = f_strhash_lookup_left(stash_global, (unsigned char*)"@RET", 4);
+    stash_global->p_val[k] = I_at_RET;
     av = AV_new();
     sv->type = SVt_av;
     sv->value.p = av;
@@ -933,7 +966,12 @@ int main(int argc, char** argv){
     }
     memset(subs + subs_len, 0, (10) * sizeof(*subs));
     subs_len = 1;
-    run_repl();
+    if(s_script_file){
+        run_script(s_script_file);
+    }
+    else{
+        run_repl();
+    }
     return 0;
 }
 
@@ -972,6 +1010,19 @@ int f_strhash_lookup(void* hash, unsigned char* pc_key, int keylen){
         else{
             k--;
         }
+    }
+}
+
+int file_exist(char* s_file){
+    struct stat _stat;
+    int tn_ret;
+
+    tn_ret = stat(s_file, &_stat);
+    if(tn_ret < 0){
+        return 0;
+    }
+    else{
+        return 1;
     }
 }
 
@@ -1046,12 +1097,105 @@ void AV_push(struct AV* av, struct SV* sv_value){
     }
 }
 
+void run_script(char* s_file){
+    int k;
+    struct CV* cv_main;
+    int i;
+    char* ts_file;
+    struct CV* cv_module;
+
+    g_local = NULL;
+    g_local_len = 0;
+    g_local_size = 0;
+    if(g_local_len + 1 > g_local_size){
+        g_local_size = (g_local_len + 1) * 5 / 3 + 10;
+        g_local=(struct SV*)realloc(g_local, g_local_size*sizeof(struct SV));
+    }
+    memset(g_local + g_local_len, 0, (1) * sizeof(*g_local));
+    g_local_len++;
+    stash_global = g_stashes[0];
+    cur_file_scope = g_file_scopes_len;
+    stash_global = stash_new();
+    if(g_stashes_len + 1 > g_stashes_size){
+        g_stashes = f_darray_expand(g_stashes, sizeof(struct stash*), &g_stashes_size);
+    }
+    g_stashes[g_stashes_len] = stash_global;
+    g_stashes_len++;
+    k = f_strhash_lookup_left(g_stashes[0], (unsigned char*)"::", strlen("::"));
+    g_stashes[0]->p_val[k] = g_stashes_len - 1;
+    cv_main = f_parse_script(s_file);
+    if(g_file_scopes_len + 1 > g_file_scopes_size){
+        g_file_scopes = f_darray_expand(g_file_scopes, sizeof(struct call_stack_entry), &g_file_scopes_size);
+    }
+    g_file_scopes[g_file_scopes_len].sv_local = g_local;
+    g_file_scopes[g_file_scopes_len].n = g_local_len;
+    g_file_scopes[g_file_scopes_len].n_size = g_local_size;
+    g_file_scopes_len++;
+    i = 0;
+    while(i<modules_len){
+        ts_file = find_module_file(modules[i]);
+        if(ts_file){
+            g_local = NULL;
+            g_local_len = 0;
+            g_local_size = 0;
+            if(g_local_len + 1 > g_local_size){
+                g_local_size = (g_local_len + 1) * 5 / 3 + 10;
+                g_local=(struct SV*)realloc(g_local, g_local_size*sizeof(struct SV));
+            }
+            memset(g_local + g_local_len, 0, (1) * sizeof(*g_local));
+            g_local_len++;
+            stash_global = g_stashes[0];
+            cur_file_scope = g_file_scopes_len;
+            cv_module = f_parse_script(ts_file);
+            if(g_file_scopes_len + 1 > g_file_scopes_size){
+                g_file_scopes = f_darray_expand(g_file_scopes, sizeof(struct call_stack_entry), &g_file_scopes_size);
+            }
+            g_file_scopes[g_file_scopes_len].sv_local = g_local;
+            g_file_scopes[g_file_scopes_len].n = g_local_len;
+            g_file_scopes[g_file_scopes_len].n_size = g_local_size;
+            g_file_scopes_len++;
+            cur_file_scope = cv_module->i_file;
+            g_local = g_file_scopes[cur_file_scope].sv_local;
+            g_local_len = g_file_scopes[cur_file_scope].n;
+            g_local_size = g_file_scopes[cur_file_scope].n_size;
+            run_cv(cv_module, 0, 0);
+        }
+        else{
+            fprintf(stderr, "can't find module %s\n", modules[i]);
+            exit(-1);
+        }
+        i++;
+    }
+    stash_global = g_stashes[1];
+    cur_file_scope = cv_main->i_file;
+    g_local = g_file_scopes[cur_file_scope].sv_local;
+    g_local_len = g_file_scopes[cur_file_scope].n;
+    g_local_size = g_file_scopes[cur_file_scope].n_size;
+    run_cv(cv_main, 0, 0);
+}
+
 void run_repl(){
+    int k;
     char* s;
     struct SV* sv_ret;
-    struct SV* sv_str;
 
     i_stack_top = 0;
+    if(g_local_len + 1 > g_local_size){
+        g_local_size = (g_local_len + 1) * 5 / 3 + 10;
+        g_local=(struct SV*)realloc(g_local, g_local_size*sizeof(struct SV));
+    }
+    memset(g_local + g_local_len, 0, (1) * sizeof(*g_local));
+    g_local_len++;
+    stash_global = g_stashes[0];
+    stash_global = stash_new();
+    if(g_stashes_len + 1 > g_stashes_size){
+        g_stashes = f_darray_expand(g_stashes, sizeof(struct stash*), &g_stashes_size);
+    }
+    g_stashes[g_stashes_len] = stash_global;
+    g_stashes_len++;
+    k = f_strhash_lookup_left(g_stashes[0], (unsigned char*)"::", strlen("::"));
+    g_stashes[0]->p_val[k] = g_stashes_len - 1;
+    stash_local = stash_new();
     puts("");
     puts("type \"quit\" to exit.");
     puts("");
@@ -1063,28 +1207,17 @@ void run_repl(){
         add_history(s);
         i_stack_top = perl_parse(s, NULL, parse_stack, i_stack_top);
         if(i_stack_top == 1 && parse_stack[i_stack_top-1].type == T_ATOM){
-            sv_ret = eval_op(parse_stack[i_stack_top-1].value.op, 0, 0);
-            sv_str = do_string(sv_ret);
-            if(sv_ret && sv_str){
-                sv_str->value.S.s[sv_str->value.S.n] = '\0';
-                printf("  %s\n", sv_str->value.S.s);
-            }
-            if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                SV_refdec(sv_ret);
-                sv_ret->flag = 0;
-                n_svreg--;
-            }
-            if(sv_str && (sv_str->flag & 3) == SVf_register){
-                SV_refdec(sv_str);
-                sv_str->flag = 0;
-                n_svreg--;
-            }
+            sv_ret = eval_op(parse_stack[i_stack_top-1].value.op, 1, 0);
+            f_dump_sv(sv_ret);
+            puts("");
+            SV_refdec(sv_ret);
             i_stack_top = 0;
         }
         else{
             struct TOK cur = {0,0};
             dump_parse_stack(parse_stack, i_stack_top, cur, NULL);
         }
+        f_commit_local_names();
     }
 }
 
@@ -1227,6 +1360,182 @@ void SV_refinc(struct SV* sv){
     sv->refcnt++;
 }
 
+struct CV * f_parse_script(char* s_file){
+    FILE* file_in;
+    struct CV* cv;
+
+    file_in = fopen(s_file, "rb");
+    if(file_in == NULL){
+        fprintf(stderr, "Can't open %s\n", s_file);
+        exit(-1);
+    }
+    else{
+        CV_begin();
+        i_stack_top = perl_parse(NULL, file_in, parse_stack, 0);
+        if(i_stack_top == 1){
+            cv = CV_close(parse_stack[0].value.op);
+            if(!(lex_stack_len == 0)){
+                puts("assert error: ! (lex_stack_len==0)");
+                exit(0);
+            }
+            return cv;
+        }
+        else{
+            struct TOK cur = {0,0};
+            dump_parse_stack(parse_stack, i_stack_top, cur, NULL);
+            fprintf(stderr, "f_parse_script failed (%d).\n", i_stack_top);
+            exit(-1);
+        }
+        fclose(file_in);
+    }
+    return NULL;
+}
+
+char* find_module_file(char* s_module_name){
+    struct AV* av;
+    int16_t n2;
+    int i;
+    int n;
+
+    av = (struct AV*)(g_global[I_at_INC].value.p);
+    n2 = strlen(s_module_name);
+    for(i=av->i_0; i<av->i_n; i++){
+        n = av->p_array[i]->value.S.n;
+        if(n + n2 + 1 < 1024){
+            memcpy(s_filename_buf, av->p_array[i]->value.S.s, n);
+            s_filename_buf[n] = '/';
+            strcpy(s_filename_buf + n + 1, s_module_name);
+        }
+        else{
+            fprintf(stderr, "find_module_file: path too long\n");
+            exit(-1);
+        }
+        if(file_exist(s_filename_buf)){
+            return s_filename_buf;
+        }
+    }
+    return NULL;
+}
+
+struct SV* run_cv(struct CV* cv, int tn_context, int tn_level){
+    int i_0;
+    int i_n;
+    int n_debug_save;
+    struct OP* op_block;
+    int n;
+    struct OP* op_list;
+    int i;
+    struct SV* sv_ret;
+
+    if(tn_level > 0){
+        i_0 = cv->i_start;
+        i_n = g_local_len;
+        if(cv->n_vars > 0){
+            memset(g_local + i_0, 0, cv->n_vars * sizeof(struct SV));
+            g_local_len += cv->n_vars;
+        }
+        else{
+            g_local_len = i_0;
+        }
+    }
+    else{
+        memset(g_local, 0, g_local_len * sizeof(struct SV));
+    }
+    if(cv->debug){
+        n_debug_save = n_debug;
+        n_debug = cv->debug;
+        printf("---- enter_scope: 0 global vars, %d local vars \n", cv->n_vars);
+    }
+    op_block = cv->op_block;
+    if(op_block->type == OP_block){
+        n = op_block->left.n;
+        op_list = op_block->right.op;
+        i = 0;
+        while(1){
+            if(cv->debug){
+                printf("cv_run %s [%d/%d]\n", cv->flag == CVf_loop ? "loop": "block", i, n);
+                if(n_svreg != 0){
+                    printf("    reg: %d\n", n_svreg);
+                }
+            }
+            sv_ret = eval_op(&op_list[i], 0, 0);
+            if(sv_ret && sv_ret->type == SVt_goto){
+                if(sv_ret->value.G.i > 0){
+                    if(!sv_ret->value.G.cv || sv_ret->value.G.cv == cv){
+                        i = sv_ret->value.G.i;
+                        if(i < n){
+                            SV_refdec(sv_ret);
+                            continue;
+                        }
+                    }
+                    SV_refdec(sv_ret);
+                    sv_ret = NULL;
+                    break;
+                }
+                else{
+                    if(sv_ret->value.G.cv != cv){
+                        break;
+                    }
+                    else if(sv_ret->value.G.i == GOTO_return){
+                        SV_refdec(sv_ret);
+                        sv_ret = NULL;
+                        break;
+                    }
+                    else if(cv->flag == CVf_loop){
+                        if(sv_ret->value.G.i == GOTO_last){
+                            SV_refdec(sv_ret);
+                            sv_ret = NULL;
+                            break;
+                        }
+                        else if(sv_ret->value.G.i == GOTO_next){
+                            SV_refdec(sv_ret);
+                            sv_ret = NULL;
+                            i += 1;
+                            continue;
+                        }
+                        else if(sv_ret->value.G.i == GOTO_redo){
+                            i -= 1;
+                            continue;
+                        }
+                    }
+                    else{
+                        if(sv_ret->value.G.i == GOTO_last || sv_ret->value.G.i == GOTO_next){
+                            SV_refdec(sv_ret);
+                            sv_ret = NULL;
+                            break;
+                        }
+                        else if(sv_ret->value.G.i == GOTO_redo){
+                            continue;
+                        }
+                    }
+                }
+            }
+            i++;
+            if(i < n){
+                SV_refdec(sv_ret);
+            }
+            else{
+                break;
+            }
+        }
+    }
+    else{
+        sv_ret = eval_op(cv->op_block, 0, tn_level + 1);
+    }
+    if(cv->debug){
+        n_debug = n_debug_save;
+        puts("---- leave_scope");
+    }
+    if(tn_level > 0){
+        int i;
+        for(i=i_0; i<g_local_len; i++){
+            SV_refdec(&g_local[i]);
+        }
+        g_local_len = i_n;
+    }
+    return sv_ret;
+}
+
 int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
     char* s;
     struct TOK cur = {0,0};
@@ -1243,7 +1552,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
     char char_save;
     bool tb_exist;
     char* s3;
-    int n_in_my;
+    int n_in_my = 0;
     int tn_bos_op;
     int tn_unary_word;
     int tn_op_type;
@@ -1251,18 +1560,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
     struct SV* sv_var;
     char char_sigil;
     char ts_var_buf[256];
-    int i_str;
-    struct strpool* p_strpool;
-    struct OP* op_fh;
-    struct OP* op_fread;
     struct CV* cv;
-    int i;
-    int tn_i;
-    struct OP* op_b;
-    int tn_type;
-    char char_index;
-    struct OP* op_index;
-    struct OP* op_v;
     struct SV* sv_name;
     struct OP* op_tmp;
     struct OP* op_goto;
@@ -1272,6 +1570,16 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
     struct OP* op_cv;
     struct OP* op_init;
     struct OP* op_cont;
+    struct OP* op_fh;
+    struct OP* op_fread;
+    int i;
+    int tn_i;
+    struct OP* op_term;
+    struct OP* op_b;
+    int tn_type;
+    char char_index;
+    struct OP* op_index;
+    struct OP* op_v;
     bool tb_cv;
 
     file_src = file_in;
@@ -1280,7 +1588,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
     }
     s = s_in;
     if(i_top == 0){
-        stack[0].type = T_BOC;
+        stack[0].type = T_BOS;
         stack[0].value.n = 0;
         i_top = 1;
     }
@@ -1290,6 +1598,24 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
         if(s == NULL){
             cur.type = T_EOF;
             cur.value.n = 0;
+            goto try_reduce;
+        }
+        if((*s=='(' || *s=='{' || *s=='[')){
+            cur.type = T_BOC;
+            cur.value.n = *s;
+            s++;
+            goto do_shift;
+        }
+        else if((*s==')' || *s=='}' || *s==']')){
+            cur.type = T_EOC;
+            cur.value.n = *s;
+            s++;
+            goto try_reduce;
+        }
+        else if(*s == ';'){
+            cur.type = T_EOS;
+            cur.value.n = *s;
+            s++;
             goto try_reduce;
         }
         else if(*s == '/' && (stack[i_top-1].type & 0xffff00)){
@@ -1456,6 +1782,10 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                                 s++;
                             }
                         }
+                        else if(strncmp(s, "strict", 6) == 0){
+                            s += 6;
+                            goto done_use;
+                        }
                         else if(isword1st(s[0])){
                             int i;
                             s2 = s;
@@ -1544,25 +1874,32 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                         op->type = OP_SUB;
                         op->right.op = NULL;
                         op->right.n = 0;
-                        cur.type = T_BOS;
+                        cur.type = T_BOS_HEAD;
                         cur.value.op = op;
                         goto try_reduce;
                     }
                     else if(tn_word == WORD_if){
-                        op = get_op();
-                        op->type = OP_IF;
-                        op->right.op = NULL;
-                        op->right.n = 0;
-                        cur.type = T_BOS;
-                        cur.value.op = op;
-                        goto try_reduce;
+                        if(stack[i_top-1].type == T_BOS){
+                            op = get_op();
+                            op->type = OP_IF;
+                            op->right.op = NULL;
+                            op->right.n = 0;
+                            cur.type = T_BOS_HEAD;
+                            cur.value.op = op;
+                            goto try_reduce;
+                        }
+                        else{
+                            cur.type = T_BOS_TEMP;
+                            cur.value.n = tn_word;
+                            goto try_reduce;
+                        }
                     }
                     else if(tn_word == WORD_while){
                         op = get_op();
                         op->type = OP_while;
                         op->right.op = NULL;
                         op->right.n = 0;
-                        cur.type = T_BOS;
+                        cur.type = T_BOS_HEAD;
                         cur.value.op = op;
                         CV_begin();
                         cv_cur->flag = CVf_loop;
@@ -1573,7 +1910,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                         op->type = OP_for;
                         op->right.op = NULL;
                         op->right.n = 0;
-                        cur.type = T_BOS;
+                        cur.type = T_BOS_HEAD;
                         cur.value.op = op;
                         CV_begin();
                         cv_cur->flag = CVf_loop;
@@ -1596,7 +1933,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
             }
             tn_bos_op = 0;
             tn_unary_word = 0;
-            if(stack[i_top-1].type == T_BOS){
+            if(stack[i_top-1].type == T_BOS_HEAD){
                 tn_bos_op = stack[i_top-1].value.op->type;
             }
             else if(stack[i_top-1].type==T_FN_LIST ||stack[i_top-1].type==T_FN_1 ){
@@ -1771,17 +2108,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                             }
                             memset(g_local + g_local_len, 0, (1) * sizeof(*g_local));
                             g_local_len++;
-                            i_str = f_addto_strpool(&local_names, ts_var_buf, n + 1);
-                            if(local_vars_len + 1 > local_vars_size){
-                                local_vars = f_darray_expand(local_vars, sizeof(int), &local_vars_size);
-                            }
-                            local_vars[local_vars_len] = i_str;
-                            local_vars_len++;
-                            if(local_vars_len + 1 > local_vars_size){
-                                local_vars = f_darray_expand(local_vars, sizeof(int), &local_vars_size);
-                            }
-                            local_vars[local_vars_len] = i_var;
-                            local_vars_len++;
+                            f_add_local_name(ts_var_buf, n + 1, i_var);
                             i_top -= 1;
                             cur.value.op = get_op();
                             cur.value.op->type = OP_MY;
@@ -1794,7 +2121,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                 }
             }
             else if(s && *s == ':'){
-                if(stack[i_top-1].type == T_BOC || stack[i_top-1].type == T_Semi){
+                if(stack[i_top-1].type == T_BOS){
                     if(s2 + n < s){
                         s2[n] = ':';
                     }
@@ -1831,6 +2158,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
             char_sigil = *s++;
             op = f_parse_var_special(char_sigil, s);
             if(op){
+                s++;
                 cur.type = T_ATOM;
                 cur.value.op = op;
                 goto do_shift;
@@ -1840,18 +2168,6 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                 cur.value.n = char_sigil;
                 goto try_reduce;
             }
-        }
-        else if((*s=='(' || *s=='{' || *s=='[')){
-            cur.type = T_BOC;
-            cur.value.n = *s;
-            s++;
-            goto do_shift;
-        }
-        else if((*s==')' || *s=='}' || *s==']')){
-            cur.type = T_EOC;
-            cur.value.n = *s;
-            s++;
-            goto try_reduce;
         }
         else{
             tn_op = 0;
@@ -1875,18 +2191,8 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
             puts("assert error: ! ((cur.type & 0xffff00))");
             exit(0);
         }
-        if(cur.type == T_Semi){
-            if(local_vars_len > 0){
-                int i;
-                p_strpool = &local_names;
-                for(i=0; i<local_vars_len; i+=2){
-                    k = f_strhash_lookup_left(stash_local, (unsigned char*)(p_strpool->pc_pool + p_strpool->pn_str[local_vars[i]]), (p_strpool->pn_str[local_vars[i]+1] - p_strpool->pn_str[local_vars[i]] - 1));
-                    stash_local->p_val[k] = local_vars[i+1];
-                }
-                local_vars_len = 0;
-                p_strpool->i_str = 0;
-                p_strpool->i_pool = 0;
-            }
+        if(cur.type == T_EOS){
+            f_commit_local_names();
         }
         if(stack[i_top-1].type & 0xffff00){
             if((cur.type & 3) == 2){
@@ -1899,27 +2205,199 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                     goto do_shift;
                 }
                 else if(cur.type == T_EOF){
-                    if(i_top == 1){
-                        stack[0].type = T_ATOM;
-                        break;
-                    }
-                    else if(stack[i_top-1].type == T_Semi){
+                    if(stack[i_top-1].type == T_BOS){
                         i_top--;
-                        goto try_reduce;
+                    }
+                    if(i_top == 0){
+                        stack[0].type = T_ATOM;
+                        return 1;
                     }
                     else{
-                        break;
+                        return i_top;
                     }
                 }
-                else if(cur.type == T_EOC && stack[i_top-1].type == T_Semi){
-                    i_top--;
-                    goto try_reduce;
-                }
-                else if(cur.type == T_EOC && stack[i_top-1].type == T_BOC){
-                    i_top -= 1;
-                    cur.type = T_ATOM;
-                    cur.value.op = NULL;
-                    goto do_shift;
+                else if(cur.type == T_EOC){
+                    if(stack[i_top-1].type == T_BOS && cur.value.n == '}'){
+                        if(stack[i_top-3].type != T_BOC){
+                            puts("EOC BLOCK resolve");
+                            dump_parse_stack(stack, i_top, cur, s);
+                            exit(0);
+                        }
+                        if(!(stack[i_top-3].type == T_BOC)){
+                            puts("assert error: ! (stack[i_top-3].type==T_BOC)");
+                            exit(0);
+                        }
+                        i_top--;
+                        cv = CV_close(stack[i_top-1].value.op);
+                        i_top -= 2;
+                        s = f_skip_simple_spaces(s);
+                        if(!s){
+                            s = s_src_end;
+                        }
+                        cur.type = T_ATOM;
+                        cur.value.op = get_op();
+                        cur.value.op->type = OP_CV;
+                        cur.value.op->right.op = NULL;
+                        cur.value.op->right.cv = cv;
+                        if(stack[i_top-1].type == T_BOS){
+                            stack[i_top++] = cur;
+                            cur.type = T_EOS;
+                            cur.value.n = 0;
+                            goto try_reduce;
+                        }
+                        else if(stack[i_top-1].type == T_BOS_HEAD){
+                            if(stack[i_top-1].value.op->type == OP_SUB){
+                                sv_name = stack[i_top-1].value.op->left.sv;
+                                k = f_strhash_lookup_left(stash_global, (unsigned char*)sv_name->value.S.s, sv_name->value.S.n);
+                                stash_global->p_val[k] = subs_len;
+                                if(subs_len + 1 > subs_size){
+                                    subs = f_darray_expand(subs, sizeof(struct CV*), &subs_size);
+                                }
+                                subs[subs_len] = cv;
+                                subs_len++;
+                                i_top -= 1;
+                                goto lexer;
+                            }
+                            else if(stack[i_top-1].value.op->type == OP_ELSE){
+                                stack[i_top-1].value.op->type = OP_IF;
+                                op = f_new_op(OP_IF, stack[i_top-1].value.op, cur.value.op);
+                                stack[i_top-1].value.op = op;
+                                f_flatten_op_list(op, OP_IF, OP_IF);
+                                stack[i_top-1].type = T_ATOM;
+                                cur.type = T_EOS;
+                                cur.value.n = 0;
+                                goto try_reduce;
+                            }
+                            puts("cv1");
+                            dump_parse_stack(stack, i_top, cur, s);
+                            exit(0);
+                        }
+                        else if(stack[i_top-2].type == T_BOS_HEAD){
+                            if(stack[i_top-2].value.op->type == OP_IF || stack[i_top-2].value.op->type == OP_ELIF){
+                                if(stack[i_top-2].value.op->type == OP_IF){
+                                    op = stack[i_top-2].value.op;
+                                    op->left.op = stack[i_top-1].value.op;
+                                    op->right.op = cur.value.op;
+                                }
+                                else{
+                                    stack[i_top-2].value.op->type = OP_IF;
+                                    op_tmp = f_new_op(OP_IF, stack[i_top-2].value.op, stack[i_top-1].value.op);
+                                    op = f_new_op(OP_IF, op_tmp, cur.value.op);
+                                    stack[i_top-2].value.op = op;
+                                }
+                                if(strncmp(s, "else", 4) == 0 && !isword(s[4])){
+                                    s += 4;
+                                    op->type = OP_ELSE;
+                                    i_top -= 1;
+                                    goto lexer;
+                                }
+                                else if(strncmp(s, "elsif", 5) == 0 && !isword(s[5])){
+                                    s += 5;
+                                    op->type = OP_ELIF;
+                                    i_top -= 1;
+                                    goto lexer;
+                                }
+                                else{
+                                    f_flatten_op_list(op, OP_IF, OP_IF);
+                                    i_top -= 1;
+                                    stack[i_top-1].type = T_ATOM;
+                                    cur.type = T_EOS;
+                                    cur.value.n = 0;
+                                    goto try_reduce;
+                                }
+                            }
+                            else if(stack[i_top-2].value.op->type == OP_while){
+                                op_goto = get_op();
+                                op_goto->type = OP_GOTO;
+                                op_goto->right.op = NULL;
+                                op_goto->right.n = 1;
+                                op_break = get_op();
+                                op_break->type = OP_GOTO;
+                                op_break->right.op = NULL;
+                                op_break->right.n = 5;
+                                op_cond = f_new_op(OP_IF_NO, stack[i_top-1].value.op, op_break);
+                                op_list = get_op_list(5);
+                                op_list[1] = *(op_cond);
+                                op_list[2] = *(cur.value.op);
+                                op_list[4] = *(op_goto);
+                                op = get_op();
+                                op->type = OP_block;
+                                op->left.n = 5;
+                                op->right.op = op_list;
+                                cv = CV_close(op);
+                                op_cv = get_op();
+                                op_cv->type = OP_CV;
+                                op_cv->right.op = NULL;
+                                op_cv->right.cv = cv;
+                                stack[i_top-2].value.op = op_cv;
+                                i_top -= 1;
+                                stack[i_top-1].type = T_ATOM;
+                                cur.type = T_EOS;
+                                cur.value.n = 0;
+                                goto try_reduce;
+                            }
+                            else if(stack[i_top-2].value.op->type == OP_for){
+                                if(stack[i_top-1].value.op->type == OP_SEQ){
+                                    f_flatten_op_list(stack[i_top-1].value.op, OP_SEQ, 0);
+                                    if(stack[i_top-1].value.op->left.n != 3){
+                                        puts("for condition");
+                                        dump_parse_stack(stack, i_top, cur, s);
+                                        exit(0);
+                                    }
+                                    op_init = stack[i_top-1].value.op->right.op;
+                                    op_cond = op_init + 1;
+                                    op_cont = op_init + 2;
+                                }
+                                else{
+                                    puts("for cond");
+                                    dump_parse_stack(stack, i_top, cur, s);
+                                    exit(0);
+                                }
+                                op_goto = get_op();
+                                op_goto->type = OP_GOTO;
+                                op_goto->right.op = NULL;
+                                op_goto->right.n = 1;
+                                op_break = get_op();
+                                op_break->type = OP_GOTO;
+                                op_break->right.op = NULL;
+                                op_break->right.n = 5;
+                                op_cond = f_new_op(OP_IF_NO, op_cond, op_break);
+                                op_list = get_op_list(5);
+                                op_list[0] = *(op_init);
+                                op_list[1] = *(op_cond);
+                                op_list[2] = *(cur.value.op);
+                                op_list[3] = *(op_cont);
+                                op_list[4] = *(op_goto);
+                                op = get_op();
+                                op->type = OP_block;
+                                op->left.n = 5;
+                                op->right.op = op_list;
+                                cv = CV_close(op);
+                                op_cv = get_op();
+                                op_cv->type = OP_CV;
+                                op_cv->right.op = NULL;
+                                op_cv->right.cv = cv;
+                                stack[i_top-2].value.op = op_cv;
+                                i_top -= 1;
+                                stack[i_top-1].type = T_ATOM;
+                                cur.type = T_EOS;
+                                cur.value.n = 0;
+                                goto try_reduce;
+                            }
+                            puts("cv2");
+                            dump_parse_stack(stack, i_top, cur, s);
+                            exit(0);
+                        }
+                        puts("unhandled block");
+                        dump_parse_stack(stack, i_top, cur, s);
+                        exit(0);
+                    }
+                    else if(stack[i_top-1].type == T_BOC){
+                        i_top -= 1;
+                        cur.type = T_ATOM;
+                        cur.value.op = NULL;
+                        goto do_shift;
+                    }
                 }
                 puts("unexpected operator!");
                 dump_parse_stack(stack, i_top, cur, s);
@@ -2010,84 +2488,110 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
         }
         if((cur.type & 0xff) < (stack[i_top-2].type & 0xff) || ((cur.type & 0xff) == (stack[i_top-2].type & 0xff) && (cur.type & 3) == 0)){
             if((stack[i_top-2].type & 3) == 2){
-                if(stack[i_top-2].type == T_FN_GOTO){
-                    if(stack[i_top-2].value.n == WORD_goto){
-                        op = get_op();
-                        op->type = OP_GOTO_LABEL;
-                        op->right.op = NULL;
-                        op->right.op = stack[i_top-1].value.op;
-                    }
-                    else if(stack[i_top-2].value.n == WORD_return){
-                        if(cv_cur->flag == CVf_sub){
-                            cv = cv_cur;
-                        }
-                        else{
-                            i = lex_stack_len - 1;
-                            while(i>0){
-                                if(lex_stack[i]->flag == CVf_sub){
-                                    cv = lex_stack[i];
-                                    break;
+                if(stack[i_top-2].type == T_BOS_HEAD){
+                    switch (stack[i_top-2].value.n){
+                        case WORD_if:
+                            if(stack[i_top-4].type == T_BOS){
+                                if(!(stack[i_top-3].type == T_ATOM)){
+                                    puts("assert error: ! (stack[i_top-3].type==T_ATOM)");
+                                    exit(0);
                                 }
-                                i--;
+                                op = get_op();
+                                op->type = OP_IF_YES;
+                                op->left.op = stack[i_top-1].value.op;
+                                op->right.op = stack[i_top-3].value.op;
+                                stack[i_top-3].value.op = op;
+                                i_top -= 2;
+                                goto try_reduce;
                             }
-                            if(i == 0){
-                                puts("return outside sub");
-                                dump_parse_stack(stack, i_top, cur, s);
-                                exit(0);
-                            }
-                        }
-                        op = get_op();
-                        op->type = OP_RETURN;
-                        op->left.cv = cv;
-                        op->right.op = stack[i_top-1].value.op;
                     }
-                    else{
-                        if(!stack[i_top-1].value.op){
-                            i = lex_stack_len - 1;
-                            cv = lex_stack[i];
-                            while(i>0){
-                                if(lex_stack[i]->flag == CVf_loop){
-                                    cv = lex_stack[i];
-                                    break;
-                                }
-                                i--;
-                            }
-                            if(stack[i_top-2].value.n == WORD_next){
-                                tn_i = GOTO_next;
-                            }
-                            else if(stack[i_top-2].value.n == WORD_last){
-                                tn_i = GOTO_last;
-                            }
-                            else if(stack[i_top-2].value.n == WORD_redo){
-                                tn_i = GOTO_redo;
-                            }
-                            op = get_op();
-                            op->type = OP_GOTO;
-                            op->left.cv = cv;
-                            op->right.n = tn_i;
-                        }
-                        else{
-                        }
-                    }
-                }
-                else if(stack[i_top-2].type == T_FN_LIST || stack[i_top-2].type == T_FN_1){
-                    op = get_op();
-                    op->type = OP_UNARY;
-                    op->left.n = stack[i_top-2].value.n;
-                    op->right.op = stack[i_top-1].value.op;
-                }
-                else if(stack[i_top-2].type == T_UNARY){
-                    op = stack[i_top-2].value.op;
-                    if(op->type == OP_Fcall){
-                        op->right.op = stack[i_top-1].value.op;
-                    }
-                    else{
-                        op->type = OP_UNARY;
-                        op->right.op = stack[i_top-1].value.op;
-                    }
+                    puts("reduce_prefix_statement");
+                    dump_parse_stack(stack, i_top, cur, s);
+                    exit(0);
                 }
                 else{
                     switch (stack[i_top-2].type){
+                        case T_FN_GOTO:
+                            if(stack[i_top-2].value.n == WORD_goto){
+                                op = get_op();
+                                op->type = OP_GOTO_LABEL;
+                                op->right.op = NULL;
+                                op->right.op = stack[i_top-1].value.op;
+                            }
+                            else if(stack[i_top-2].value.n == WORD_return){
+                                if(cv_cur->flag == CVf_sub){
+                                    cv = cv_cur;
+                                }
+                                else{
+                                    i = lex_stack_len - 1;
+                                    while(i>0){
+                                        if(lex_stack[i]->flag == CVf_sub){
+                                            cv = lex_stack[i];
+                                            break;
+                                        }
+                                        i--;
+                                    }
+                                    if(i == 0){
+                                        puts("return outside sub");
+                                        dump_parse_stack(stack, i_top, cur, s);
+                                        exit(0);
+                                    }
+                                }
+                                op = get_op();
+                                op->type = OP_RETURN;
+                                op->left.cv = cv;
+                                op->right.op = stack[i_top-1].value.op;
+                            }
+                            else{
+                                if(!stack[i_top-1].value.op){
+                                    i = lex_stack_len - 1;
+                                    cv = lex_stack[i];
+                                    while(i>0){
+                                        if(lex_stack[i]->flag == CVf_loop){
+                                            cv = lex_stack[i];
+                                            break;
+                                        }
+                                        i--;
+                                    }
+                                    if(stack[i_top-2].value.n == WORD_next){
+                                        tn_i = GOTO_next;
+                                    }
+                                    else if(stack[i_top-2].value.n == WORD_last){
+                                        tn_i = GOTO_last;
+                                    }
+                                    else if(stack[i_top-2].value.n == WORD_redo){
+                                        tn_i = GOTO_redo;
+                                    }
+                                    op = get_op();
+                                    op->type = OP_GOTO;
+                                    op->left.cv = cv;
+                                    op->right.n = tn_i;
+                                }
+                                else{
+                                }
+                            }
+                            break;
+                        case T_FN_LIST:
+                        case T_FN_1:
+                            op_term = stack[i_top-1].value.op;
+                            if(stack[i_top-2].type == T_FN_LIST){
+                                f_flatten_op_list(op_term, OP_LIST, OP_list);
+                            }
+                            op = get_op();
+                            op->type = OP_UNARY;
+                            op->left.n = stack[i_top-2].value.n;
+                            op->right.op = op_term;
+                            break;
+                        case T_UNARY:
+                            op = stack[i_top-2].value.op;
+                            if(op->type == OP_Fcall){
+                                op->right.op = stack[i_top-1].value.op;
+                            }
+                            else{
+                                op->type = OP_UNARY;
+                                op->right.op = stack[i_top-1].value.op;
+                            }
+                            break;
                         case T_UMINUS:
                             op = get_op();
                             op->type = OP_UMINUS;
@@ -2141,31 +2645,21 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                             dump_parse_stack(stack, i_top, cur, s);
                             exit(0);
                     }
-                }
-                if(n_debug){
-                    int i;
-                    for(i=0; i<i_top-2; i++){
-                        fputs(".", stdout);
+                    if(n_debug){
+                        int i;
+                        for(i=0; i<i_top-2; i++){
+                            fputs(".", stdout);
+                        }
+                        puts("reduce_unary T_ATOM");
                     }
-                    puts("reduce_unary T_ATOM");
+                    stack[i_top-2].type = T_ATOM;
+                    stack[i_top-2].value.op = op;
+                    i_top -= 1;
+                    goto try_reduce;
                 }
-                stack[i_top-2].type = T_ATOM;
-                stack[i_top-2].value.op = op;
-                i_top -= 1;
-                goto try_reduce;
             }
             else{
                 switch (stack[i_top-2].type){
-                    case T_Semi:
-                        if(n_debug){
-                            int i;
-                            for(i=0; i<i_top-2; i++){
-                                fputs(".", stdout);
-                            }
-                            printf("reduce_binary: OP_SEQ -> %s, %s\n", get_OP_name(stack[i_top-3].value.op->type), get_OP_name(stack[i_top-1].value.op->type));
-                        }
-                        op = f_new_op(OP_SEQ, stack[i_top-3].value.op, stack[i_top-1].value.op);
-                        break;
                     case T_Comma:
                         if(n_debug){
                             int i;
@@ -2616,6 +3110,14 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                         }
                         op = f_new_op(OP_and, stack[i_top-3].value.op, stack[i_top-1].value.op);
                         break;
+                    case T_BOS_TEMP:
+                        op = get_op();
+                        op->type = OP_SEQ;
+                        op->left.op = stack[i_top-3].value.op;
+                        op->right.op = stack[i_top-1].value.op;
+                        stack[i_top-3].value.op = op;
+                        i_top -= 2;
+                        goto try_reduce;
                     default:
                         printf("unsupported binary op [%s]\n", get_T_name(stack[i_top-2].type));
                         dump_parse_stack(stack, i_top, cur, s);
@@ -2632,7 +3134,7 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
         }
         else if((cur.type & 3) == 3){
             if(cur.type == T_EOF){
-                if(i_top == 2){
+                if(i_top == 2 && stack[i_top-2].type == T_BOS){
                     memcpy(stack + 0, stack + 1, sizeof(struct TOK));
                     return 1;
                 }
@@ -2641,6 +3143,11 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                 }
             }
             else if(cur.type == T_EOC){
+                if(stack[i_top-2].type == T_BOS && cur.value.n == '}'){
+                    memcpy(stack + i_top - 2, stack + i_top - 1, sizeof(struct TOK));
+                    stack[i_top-1].type = T_BOS;
+                    goto try_reduce;
+                }
                 if(n_debug){
                     int i;
                     for(i=0; i<i_top-2; i++){
@@ -2651,245 +3158,111 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                         printf(" %p [block: %s -> %s, %s]\n", stack[i_top-1].value.op, get_OP_name(stack[i_top-1].value.op->type), get_OP_name(stack[i_top-1].value.op->left.op->type), get_OP_name(stack[i_top-1].value.op->right.op->type));
                     }
                 }
-                if(cur.value.n == 0){
-                    if(i_top == 2){
-                        memcpy(stack + 0, stack + 1, sizeof(struct TOK));
-                        return 1;
-                    }
-                    else{
-                        return i_top;
-                    }
+                if((stack[i_top-2].value.n == '(' && cur.value.n == ')') || (stack[i_top-2].value.n == '[' && cur.value.n == ']') || (stack[i_top-2].value.n == '{' && cur.value.n == '}')){
                 }
                 else{
-                    if((stack[i_top-2].value.n == '(' && cur.value.n == ')') || (stack[i_top-2].value.n == '[' && cur.value.n == ']') || (stack[i_top-2].value.n == '{' && cur.value.n == '}')){
-                    }
-                    else{
-                        puts("Parentheses mismatch!");
-                        dump_parse_stack(stack, i_top, cur, s);
-                        exit(0);
-                    }
-                    if((cur.value.n=='}' || cur.value.n==']')){
-                        if(stack[i_top-3].type == T_ATOM){
-                            tn_type = stack[i_top-3].value.op->type;
-                            if(tn_type==OP_SIGIL ||tn_type==OP_LOCAL ||tn_type==OP_GLOBAL ){
-                                tn_type = 0;
-                                if(cur.value.n == ']'){
-                                    tn_type = OP_ARRAY_INDEX;
-                                }
-                                else if(cur.value.n == '}'){
-                                    tn_type = OP_HASH_INDEX;
-                                }
-                                char_index = cur.value.n;
-                                op_index = stack[i_top-1].value.op;
-                                i_top -= 2;
-                                while(stack[i_top-2].type == T_SIGIL){
-                                    char_sigil = stack[i_top-2].value.n;
-                                    if(char_sigil != '$'){
-                                        puts("var index is scalar (use $)!");
-                                        dump_parse_stack(stack, i_top, cur, s);
-                                        exit(0);
-                                    }
-                                    if(tn_type == OP_ARRAY_INDEX){
-                                        char_sigil = '@';
-                                    }
-                                    else if(tn_type == OP_HASH_INDEX){
-                                        char_sigil = '%';
-                                    }
-                                    op_v = get_op();
-                                    op_v->type = OP_SIGIL;
-                                    op_v->left.n = char_sigil;
-                                    op_v->right.op = stack[i_top-1].value.op;
-                                    stack[i_top-2].type = T_ATOM;
-                                    stack[i_top-2].value.op = op_v;
-                                    i_top -= 1;
-                                }
-                                op_v = f_new_op(tn_type, stack[i_top-1].value.op, op_index);
-                                stack[i_top-1].value.op = op_v;
-                                cur.type = 0;
-                                break;
+                    puts("Parentheses mismatch!");
+                    dump_parse_stack(stack, i_top, cur, s);
+                    exit(0);
+                }
+                if((cur.value.n=='}' || cur.value.n==']')){
+                    if(stack[i_top-3].type == T_ATOM){
+                        tn_type = stack[i_top-3].value.op->type;
+                        if(tn_type==OP_SIGIL ||tn_type==OP_LOCAL ||tn_type==OP_GLOBAL ){
+                            tn_type = 0;
+                            if(cur.value.n == ']'){
+                                tn_type = OP_ARRAY_INDEX;
                             }
-                        }
-                    }
-                    if(cur.value.n == '}'){
-                        cv = CV_close(stack[i_top-1].value.op);
-                        cur.type = T_ATOM;
-                        cur.value.op = get_op();
-                        cur.value.op->type = OP_CV;
-                        cur.value.op->right.op = NULL;
-                        cur.value.op->right.cv = cv;
-                        i_top -= 2;
-                        s = f_skip_simple_spaces(s);
-                        if(!s){
-                            s = s_src_end;
-                        }
-                        if(stack[i_top-1].type==T_Semi ||stack[i_top-1].type==T_BOC ){
-                            stack[i_top++] = cur;
-                            cur.type = T_Semi;
-                            cur.value.n = 0;
-                            goto try_reduce;
-                        }
-                        else if(stack[i_top-1].type == T_BOS){
-                            if(stack[i_top-1].value.op->type == OP_SUB){
-                                sv_name = stack[i_top-1].value.op->left.sv;
-                                k = f_strhash_lookup_left(stash_global, (unsigned char*)sv_name->value.S.s, sv_name->value.S.n);
-                                stash_global->p_val[k] = subs_len;
-                                if(subs_len + 1 > subs_size){
-                                    subs = f_darray_expand(subs, sizeof(struct CV*), &subs_size);
-                                }
-                                subs[subs_len] = cv;
-                                subs_len++;
-                                i_top -= 1;
-                                goto lexer;
+                            else if(cur.value.n == '}'){
+                                tn_type = OP_HASH_INDEX;
                             }
-                            else if(stack[i_top-1].value.op->type == OP_ELSE){
-                                stack[i_top-1].value.op->type = OP_IF;
-                                op = f_new_op(OP_IF, stack[i_top-1].value.op, cur.value.op);
-                                stack[i_top-1].value.op = op;
-                                f_flatten_op_list(op, OP_IF);
-                                stack[i_top-1].type = T_ATOM;
-                                cur.type = T_Semi;
-                                cur.value.n = 0;
-                                goto try_reduce;
-                            }
-                            puts("cv1");
-                            dump_parse_stack(stack, i_top, cur, s);
-                            exit(0);
-                        }
-                        else if(stack[i_top-2].type == T_BOS){
-                            if(stack[i_top-2].value.op->type == OP_IF || stack[i_top-2].value.op->type == OP_ELIF){
-                                if(stack[i_top-2].value.op->type == OP_IF){
-                                    op = stack[i_top-2].value.op;
-                                    op->left.op = stack[i_top-1].value.op;
-                                    op->right.op = cur.value.op;
-                                }
-                                else{
-                                    stack[i_top-2].value.op->type = OP_IF;
-                                    op_tmp = f_new_op(OP_IF, stack[i_top-2].value.op, stack[i_top-1].value.op);
-                                    op = f_new_op(OP_IF, op_tmp, cur.value.op);
-                                    stack[i_top-2].value.op = op;
-                                }
-                                if(strncmp(s, "else", 4) == 0 && !isword(s[4])){
-                                    s += 4;
-                                    op->type = OP_ELSE;
-                                    i_top -= 1;
-                                    goto lexer;
-                                }
-                                else if(strncmp(s, "elsif", 5) == 0 && !isword(s[5])){
-                                    s += 5;
-                                    op->type = OP_ELIF;
-                                    i_top -= 1;
-                                    goto lexer;
-                                }
-                                else{
-                                    f_flatten_op_list(op, OP_IF);
-                                    i_top -= 1;
-                                    stack[i_top-1].type = T_ATOM;
-                                    cur.type = T_Semi;
-                                    cur.value.n = 0;
-                                    goto try_reduce;
-                                }
-                            }
-                            else if(stack[i_top-2].value.op->type == OP_while){
-                                op_goto = get_op();
-                                op_goto->type = OP_GOTO;
-                                op_goto->right.op = NULL;
-                                op_goto->right.n = 1;
-                                op_break = get_op();
-                                op_break->type = OP_GOTO;
-                                op_break->right.op = NULL;
-                                op_break->right.n = 5;
-                                op_cond = f_new_op(OP_IF_NO, stack[i_top-1].value.op, op_break);
-                                op_list = get_op_list(5);
-                                op_list[1] = *(op_cond);
-                                op_list[2] = *(cur.value.op);
-                                op_list[4] = *(op_goto);
-                                op = get_op();
-                                op->type = OP_block;
-                                op->left.n = 5;
-                                op->right.op = op_list;
-                                cv = CV_close(op);
-                                op_cv = get_op();
-                                op_cv->type = OP_CV;
-                                op_cv->right.op = NULL;
-                                op_cv->right.cv = cv;
-                                stack[i_top-2].value.op = op_cv;
-                                i_top -= 1;
-                                stack[i_top-1].type = T_ATOM;
-                                cur.type = T_Semi;
-                                cur.value.n = 0;
-                                goto try_reduce;
-                            }
-                            else if(stack[i_top-2].value.op->type == OP_for){
-                                if(stack[i_top-1].value.op->type == OP_SEQ){
-                                    f_flatten_op_list(stack[i_top-1].value.op, OP_SEQ);
-                                    if(stack[i_top-1].value.op->left.n != 3){
-                                        puts("for condition");
-                                        dump_parse_stack(stack, i_top, cur, s);
-                                        exit(0);
-                                    }
-                                    op_init = stack[i_top-1].value.op->right.op;
-                                    op_cond = op_init + 1;
-                                    op_cont = op_init + 2;
-                                }
-                                else{
-                                    puts("for cond");
+                            char_index = cur.value.n;
+                            op_index = stack[i_top-1].value.op;
+                            i_top -= 2;
+                            while(stack[i_top-2].type == T_SIGIL){
+                                char_sigil = stack[i_top-2].value.n;
+                                if(char_sigil != '$'){
+                                    puts("var index is scalar (use $)!");
                                     dump_parse_stack(stack, i_top, cur, s);
                                     exit(0);
                                 }
-                                op_goto = get_op();
-                                op_goto->type = OP_GOTO;
-                                op_goto->right.op = NULL;
-                                op_goto->right.n = 1;
-                                op_break = get_op();
-                                op_break->type = OP_GOTO;
-                                op_break->right.op = NULL;
-                                op_break->right.n = 5;
-                                op_cond = f_new_op(OP_IF_NO, op_cond, op_break);
-                                op_list = get_op_list(5);
-                                op_list[0] = *(op_init);
-                                op_list[1] = *(op_cond);
-                                op_list[2] = *(cur.value.op);
-                                op_list[3] = *(op_cont);
-                                op_list[4] = *(op_goto);
-                                op = get_op();
-                                op->type = OP_block;
-                                op->left.n = 5;
-                                op->right.op = op_list;
-                                cv = CV_close(op);
-                                op_cv = get_op();
-                                op_cv->type = OP_CV;
-                                op_cv->right.op = NULL;
-                                op_cv->right.cv = cv;
-                                stack[i_top-2].value.op = op_cv;
+                                if(tn_type == OP_ARRAY_INDEX){
+                                    char_sigil = '@';
+                                }
+                                else if(tn_type == OP_HASH_INDEX){
+                                    char_sigil = '%';
+                                }
+                                op_v = get_op();
+                                op_v->type = OP_SIGIL;
+                                op_v->left.n = char_sigil;
+                                op_v->right.op = stack[i_top-1].value.op;
+                                stack[i_top-2].type = T_ATOM;
+                                stack[i_top-2].value.op = op_v;
                                 i_top -= 1;
-                                stack[i_top-1].type = T_ATOM;
-                                cur.type = T_Semi;
-                                cur.value.n = 0;
-                                goto try_reduce;
                             }
-                            puts("cv2");
-                            dump_parse_stack(stack, i_top, cur, s);
-                            exit(0);
+                            op_v = f_new_op(tn_type, stack[i_top-1].value.op, op_index);
+                            stack[i_top-1].value.op = op_v;
+                            goto lexer;
                         }
-                        puts("unhandled block");
-                        dump_parse_stack(stack, i_top, cur, s);
+                    }
+                }
+                if((stack[i_top-3].type == T_BOS || stack[i_top-3].type == T_MY) && cur.value.n == ')' && stack[i_top-1].value.op->type != OP_LIST){
+                    op = get_op();
+                    op->type = OP_list;
+                    op->left.n = 1;
+                    op->right.op = stack[i_top-1].value.op;
+                    i_top -= 1;
+                    stack[i_top-1].type = T_ATOM;
+                    stack[i_top-1].value.op = op;
+                    goto lexer;
+                }
+                memcpy(stack + i_top - 2, stack + i_top - 1, sizeof(struct TOK));
+                i_top -= 1;
+                goto lexer;
+            }
+            else if(cur.type == T_EOS){
+                if(stack[i_top-2].type == T_BOS){
+                    if(!(stack[i_top-1].type == T_ATOM)){
+                        puts("assert error: ! (stack[i_top-1].type==T_ATOM)");
                         exit(0);
                     }
-                    memcpy(stack + i_top - 2, stack + i_top - 1, sizeof(struct TOK));
-                    i_top -= 1;
+                    if(i_top == 2 || stack[i_top-3].type == T_BOC){
+                        memcpy(stack + i_top - 2, stack + i_top - 1, sizeof(struct TOK));
+                    }
+                    else{
+                        op = get_op();
+                        op->type = OP_SEQ;
+                        op->left.op = stack[i_top-3].value.op;
+                        op->right.op = stack[i_top-1].value.op;
+                        stack[i_top-3].value.op = op;
+                        i_top -= 1;
+                    }
+                    stack[i_top-1].type = T_BOS;
+                    stack[i_top-1].value.n = 0;
                     goto lexer;
+                }
+                else if(stack[i_top-1].type == T_BOS){
+                    goto lexer;
+                }
+                else if(stack[i_top-2].type == T_BOC){
+                    cur.type = T_BOS_TEMP;
+                    cur.value.n = WORD_for;
+                    stack[i_top++] = cur;
+                    goto lexer;
+                }
+                else{
+                    puts("reduce_eos");
+                    dump_parse_stack(stack, i_top, cur, s);
+                    exit(0);
                 }
             }
             else{
-                puts("Don't know reduce_postfix");
+                puts("Don't know how to reduce_postfix");
                 dump_parse_stack(stack, i_top, cur, s);
                 exit(0);
             }
         }
-        if(!cur.type){
-            goto lexer;
-        }
-        else if(cur.type == T_EOF){
+        if(cur.type == T_EOF){
             break;
         }
         do_shift:
@@ -2905,22 +3278,28 @@ int perl_parse(char* s_in, FILE* file_in, struct TOK* stack, int i_top){
                 exit(0);
             }
         }
-        else if(cur.type == T_BOC){
-            if(cur.value.n == '{'){
-                tb_cv = 1;
-                if(stack[i_top-1].type == T_ATOM){
-                    tn_type = stack[i_top-1].value.op->type;
-                    if(tn_type==OP_SIGIL ||tn_type==OP_LOCAL ||tn_type==OP_GLOBAL ){
-                        tb_cv = 0;
-                    }
-                }
-                if(tb_cv){
-                    CV_begin();
-                    if(stack[i_top-1].type == T_BOS && stack[i_top-1].value.op->type == OP_SUB){
-                        cv_cur->flag = CVf_sub;
-                    }
+        else if(cur.type == T_BOC && cur.value.n == '{'){
+            tb_cv = 1;
+            if(stack[i_top-1].type == T_ATOM){
+                tn_type = stack[i_top-1].value.op->type;
+                if(tn_type==OP_SIGIL ||tn_type==OP_LOCAL ||tn_type==OP_GLOBAL ){
+                    tb_cv = 0;
                 }
             }
+            if(tb_cv){
+                CV_begin();
+                if(stack[i_top-1].type == T_BOS_HEAD && stack[i_top-1].value.op->type == OP_SUB){
+                    cv_cur->flag = CVf_sub;
+                }
+                stack[i_top++] = cur;
+                cur.type = T_BOS;
+                cur.value.n = 0;
+                stack[i_top++] = cur;
+                goto lexer;
+            }
+        }
+        else if(cur.type == T_BOS_TEMP){
+            cur.type = T_BOS_HEAD;
         }
         stack[i_top++] = cur;
     }
@@ -2937,19 +3316,21 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
     char* s;
     int tn_size;
     char* s2;
+    struct SV* sv_sep;
+    bool tb_flag;
+    int i;
+    int n;
     struct SV* sv_io;
     struct SV* sv_file;
     char* ts_mode;
     char* s_end;
     FILE* file_tmp;
     FILE* file_in;
-    int n;
     int i_var;
     struct SV* sv_var;
     struct HV* hv;
     struct SV* sv_b;
     struct SV* sv_key;
-    int i;
     struct AV* av_a;
     struct AV* av_b;
     struct SV* sv_name;
@@ -2957,18 +3338,16 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
     struct CV* cv;
     struct SV* sv_arg;
     int i_file_scope_save;
+    struct call_stack_entry cur_stack_save;
     int n_save;
     struct SV* sv_local;
     struct SV* sv_save;
-    struct AV* av_arg;
     struct AV* av_save;
     struct AV* av_ret;
     struct OP* op_list;
     int i_else;
     struct SV* sv_cond;
     int tn_bool;
-    struct SV* sv_sep;
-    struct SV* sv_1st;
     struct SV* sv_pat;
     pcre* Re;
     const char* ts_err;
@@ -2978,10 +3357,10 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
     struct SV* sv_s_a;
     struct SV* sv_s_b;
     int tn_ret;
-    double f1;
-    double f2;
-    int8_t n1;
-    int16_t n2;
+    double f_1;
+    double f_2;
+    int n_1;
+    int n_2;
     char* s_a;
     int n_a;
 
@@ -3001,12 +3380,19 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
         case OP_SEQ:
             eval_op(op->left.op, 0, tn_level);
             return eval_op(op->right.op, 0, tn_level);
+        case OP_LIST:
+            f_flatten_op_list(op, OP_LIST, OP_list);
+        case OP_list:
+            if(tn_context == 1){
+                return eval_list(op, 2, tn_level + 1);
+            }
+            else{
+                return eval_list(op, tn_context, tn_level + 1);
+            }
         case OP_CV:
             return run_cv(op->right.cv, tn_context, tn_level + 1);
         case OP_CONST:
             return SV_copy(NULL, op->right.sv);
-        case OP_LIST:
-            return eval_list(op->left.op, op->right.op, tn_context, tn_level + 1);
         case OP_GOTO:
             sv = get_svreg(SVt_goto);
             sv->type = SVt_goto;
@@ -3022,11 +3408,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 return sv_ret;
             }
             else{
-                if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                    SV_refdec(sv_ret);
-                    sv_ret->flag = 0;
-                    n_svreg--;
-                }
+                SV_refdec(sv_ret);
                 return eval_op(op->right.op, 1, tn_level + 1);
             }
         case OP_and:
@@ -3035,11 +3417,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 return sv_ret;
             }
             else{
-                if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                    SV_refdec(sv_ret);
-                    sv_ret->flag = 0;
-                    n_svreg--;
-                }
+                SV_refdec(sv_ret);
                 return eval_op(op->right.op, 1, tn_level + 1);
             }
         case OP_UMINUS:
@@ -3055,16 +3433,12 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
             else{
                 sv_ret = sv_TRUE;
             }
-            if(sv_a && (sv_a->flag & 3) == SVf_register){
-                SV_refdec(sv_a);
-                sv_a->flag = 0;
-                n_svreg--;
-            }
+            SV_refdec(sv_a);
             return sv_ret;
         case OP_UNARY:
             tn_word = op->left.n;
             if(tn_word < WORD_FN_LIST){
-                sv_right = eval_list(NULL, op->right.op, 2, tn_level + 1);
+                sv_right = eval_list(op->right.op, 2, tn_level + 1);
                 av = (struct AV*)sv_right->value.p;
             }
             else{
@@ -3138,6 +3512,26 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                         sv_ret->value.S.size = tn_size;
                     }
                     break;
+                case WORD_join:
+                    sv_sep = AV_shift(av);
+                    sv_ret = get_svreg(SVt_string);
+                    tb_flag = 0;
+                    for(i=av->i_0; i<av->i_n; i++){
+                        if(tb_flag){
+                            SV_append_sv(sv_ret, sv_sep);
+                        }
+                        else{
+                            tb_flag = 1;
+                        }
+                        SV_append_sv(sv_ret, av->p_array[i]);
+                    }
+                    SV_refdec(sv_sep);
+                    break;
+                case WORD_int:
+                    n = do_int(sv_right);
+                    sv_ret = get_svreg(SVt_int);
+                    sv_ret->value.n = n;
+                    break;
                 case WORD_print:
                 case WORD_printf:
                     sv_io = AV_get(av, 0);
@@ -3153,11 +3547,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                     else{
                         do_printf(sv_io, av);
                     }
-                    if(sv_io && (sv_io->flag & 3) == SVf_register){
-                        SV_refdec(sv_io);
-                        sv_io->flag = 0;
-                        n_svreg--;
-                    }
+                    SV_refdec(sv_io);
                     break;
                 case WORD_warn:
                 case WORD_die:
@@ -3257,11 +3647,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                     fprintf(stderr, "unsupported UNARY op [%s]\n", get_WORD_name(tn_word));
                     exit(-1);
             }
-            if(sv_right && (sv_right->flag & 3) == SVf_register){
-                SV_refdec(sv_right);
-                sv_right->flag = 0;
-                n_svreg--;
-            }
+            SV_refdec(sv_right);
             return sv_ret;
         case OP_MY:
         case OP_LOCAL:
@@ -3320,21 +3706,9 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                     HV_set(hv, sv_key->value.S.s, sv_key->value.S.n, sv);
                 }
             }
-            if(sv_a && (sv_a->flag & 3) == SVf_register){
-                SV_refdec(sv_a);
-                sv_a->flag = 0;
-                n_svreg--;
-            }
-            if(sv_b && (sv_b->flag & 3) == SVf_register){
-                SV_refdec(sv_b);
-                sv_b->flag = 0;
-                n_svreg--;
-            }
-            if(sv_key && (sv_key->flag & 3) == SVf_register){
-                SV_refdec(sv_key);
-                sv_key->flag = 0;
-                n_svreg--;
-            }
+            SV_refdec(sv_a);
+            SV_refdec(sv_b);
+            SV_refdec(sv_key);
             return sv;
         case OP_ARRAY_INDEX:
             sv_a = eval_op(op->left.op, 1, tn_level + 1);
@@ -3352,16 +3726,8 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 sv = get_sv(0);
                 AV_set(av, i, sv);
             }
-            if(sv_a && (sv_a->flag & 3) == SVf_register){
-                SV_refdec(sv_a);
-                sv_a->flag = 0;
-                n_svreg--;
-            }
-            if(sv_b && (sv_b->flag & 3) == SVf_register){
-                SV_refdec(sv_b);
-                sv_b->flag = 0;
-                n_svreg--;
-            }
+            SV_refdec(sv_a);
+            SV_refdec(sv_b);
             return sv;
         case OP_ASSIGN:
             sv_var = eval_op(op->left.op, 3, tn_level + 1);
@@ -3396,16 +3762,8 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 do_assign(sv_var, sv_b);
             }
             sv_ret = SV_copy(NULL, sv_var);
-            if(sv_var && (sv_var->flag & 3) == SVf_register){
-                SV_refdec(sv_var);
-                sv_var->flag = 0;
-                n_svreg--;
-            }
-            if(sv_b && (sv_b->flag & 3) == SVf_register){
-                SV_refdec(sv_b);
-                sv_b->flag = 0;
-                n_svreg--;
-            }
+            SV_refdec(sv_var);
+            SV_refdec(sv_b);
             return sv_ret;
         case OP_Fcall:
             sv_name = op->left.sv;
@@ -3417,6 +3775,9 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 i_file_scope_save = -1;
                 if(cv->i_file != cur_file_scope){
                     i_file_scope_save = cur_file_scope;
+                    cur_stack_save.sv_local = g_local;
+                    cur_stack_save.n = g_local_len;
+                    cur_stack_save.n_size = g_local_size;
                     cur_file_scope = cv->i_file;
                     g_local = g_file_scopes[cur_file_scope].sv_local;
                     g_local_len = g_file_scopes[cur_file_scope].n;
@@ -3446,38 +3807,24 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                     sv_save=(struct SV*)malloc(n_save*sizeof(struct SV));
                     memcpy(sv_save, sv_local, n_save * sizeof(struct SV));
                 }
+                av_save = g_global[I_at_ARG].value.p;
                 if(!sv_arg){
-                    av_arg = NULL;
+                    g_global[I_at_ARG].value.p = NULL;
                 }
                 else if(sv_arg->type == SVt_av){
-                    av_arg = (struct AV*)sv_arg->value.p;
-                    sv_arg->type = 0;
-                    if(sv_arg && (sv_arg->flag & 3) == SVf_register){
-                        sv_arg->flag = 0;
-                        n_svreg--;
-                    }
+                    SV_copy(&g_global[I_at_ARG], sv_arg);
+                    SV_refdec(sv_arg);
                 }
                 else{
-                    av_arg = AV_new();
-                    AV_push(av_arg, sv_arg);
-                    if(sv_arg && (sv_arg->flag & 3) == SVf_register){
-                        sv_arg->flag = 0;
-                        n_svreg--;
-                    }
+                    g_global[I_at_ARG].value.p = AV_new();
+                    AV_push(g_global[I_at_ARG].value.p, sv_arg);
+                    SV_refdec(sv_arg);
                 }
-                av_save = g_global[I_at_ARG].value.p;
-                g_global[I_at_ARG].value.p = av_arg;
+                g_global[I_at_RET].value.p = NULL;
                 sv_ret = run_cv(cv, tn_context, tn_level + 1);
-                if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                    SV_refdec(sv_ret);
-                    sv_ret->flag = 0;
-                    n_svreg--;
-                }
-                av_ret = (struct AV*)g_global[I_at_ARG].value.p;
-                if(av_ret == av_arg && av_arg){
-                    AV_free(av_arg);
-                    av_ret = NULL;
-                }
+                SV_refdec(sv_ret);
+                AV_free(g_global[I_at_ARG].value.p);
+                av_ret = (struct AV*)g_global[I_at_RET].value.p;
                 if(av_ret){
                     if(tn_context == 2){
                         sv_ret = get_svreg(SVt_av);
@@ -3485,8 +3832,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                     }
                     else{
                         sv_ret = AV_shift(av_ret);
-                        SV_refinc(sv_ret);
-                        AV_free(av);
+                        AV_free(av_ret);
                     }
                 }
                 else{
@@ -3501,9 +3847,9 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 }
                 if(i_file_scope_save >= 0){
                     cur_file_scope = i_file_scope_save;
-                    g_local = g_file_scopes[cur_file_scope].sv_local;
-                    g_local_len = g_file_scopes[cur_file_scope].n;
-                    g_local_size = g_file_scopes[cur_file_scope].n_size;
+                    g_local = cur_stack_save.sv_local;
+                    g_local_len = cur_stack_save.n;
+                    g_local_size = cur_stack_save.n_size;
                 }
                 return sv_ret;
             }
@@ -3513,25 +3859,20 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
             }
             return NULL;
         case OP_RETURN:
-            av_ret = (struct AV*)g_global[I_at_ARG].value.p;
-            if(av_ret){
-                AV_free(av_ret);
-            }
             sv_ret = eval_op(op->right.op, 2, tn_level + 1);
             if(!sv_ret){
-                g_global[I_at_ARG].value.p = NULL;
+                g_global[I_at_RET].value.p = NULL;
             }
             else if(sv_ret->type == SVt_av){
-                g_global[I_at_ARG].value.p = (struct AV*)sv_ret->value.p;
-                if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                    sv_ret->flag = 0;
-                    n_svreg--;
-                }
+                g_global[I_at_RET].value.p = (struct AV*)sv_ret->value.p;
+                sv_ret->value.p = NULL;
+                SV_refdec(sv_ret);
             }
             else{
                 av_ret = AV_new();
                 AV_push(av_ret, sv_ret);
-                g_global[I_at_ARG].value.p = av_ret;
+                g_global[I_at_RET].value.p = av_ret;
+                SV_refdec(sv_ret);
             }
             sv_ret = get_svreg(SVt_undef);
             cv = op->left.cv;
@@ -3550,11 +3891,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
             for(i=0; i<n; i+=2){
                 sv_cond = eval_op(&op_list[i], 1, tn_level + 1);
                 tn_bool = do_bool(sv_cond);
-                if(sv_cond && (sv_cond->flag & 3) == SVf_register){
-                    SV_refdec(sv_cond);
-                    sv_cond->flag = 0;
-                    n_svreg--;
-                }
+                SV_refdec(sv_cond);
                 if(tn_bool){
                     return eval_op(&op_list[i+1], 0, tn_level + 1);
                 }
@@ -3566,11 +3903,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
         case OP_IF_YES:
             sv_cond = eval_op(op->left.op, 1, tn_level + 1);
             tn_bool = do_bool(sv_cond);
-            if(sv_cond && (sv_cond->flag & 3) == SVf_register){
-                SV_refdec(sv_cond);
-                sv_cond->flag = 0;
-                n_svreg--;
-            }
+            SV_refdec(sv_cond);
             if(tn_bool){
                 return eval_op(op->right.op, 0, tn_level + 1);
             }
@@ -3578,41 +3911,11 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
         case OP_IF_NO:
             sv_cond = eval_op(op->left.op, 1, tn_level + 1);
             tn_bool = do_bool(sv_cond);
-            if(sv_cond && (sv_cond->flag & 3) == SVf_register){
-                SV_refdec(sv_cond);
-                sv_cond->flag = 0;
-                n_svreg--;
-            }
+            SV_refdec(sv_cond);
             if(!tn_bool){
                 return eval_op(op->right.op, 0, tn_level + 1);
             }
             return NULL;
-        case OP_join:
-            sv_b = eval_list(NULL, op->right.op, tn_context, tn_level + 1);
-            av = (struct AV*)sv_b->value.p;
-            sv_sep = AV_shift(av);
-            sv_1st = AV_shift(av);
-            sv = do_string(sv_1st);
-            for(i=av->i_0; i<av->i_n; i++){
-                SV_append_sv(sv, sv_sep);
-                SV_append_sv(sv, av->p_array[i]);
-            }
-            if(sv_1st && (sv_1st->flag & 3) == SVf_register){
-                SV_refdec(sv_1st);
-                sv_1st->flag = 0;
-                n_svreg--;
-            }
-            if(sv_b && (sv_b->flag & 3) == SVf_register){
-                SV_refdec(sv_b);
-                sv_b->flag = 0;
-                n_svreg--;
-            }
-            if(sv_sep && (sv_sep->flag & 3) == SVf_register){
-                SV_refdec(sv_sep);
-                sv_sep->flag = 0;
-                n_svreg--;
-            }
-            return sv;
         case OP_ReMatch:
             sv_ret = NULL;
             sv_a = eval_op(op->left.op, 1, tn_level + 1);
@@ -3692,11 +3995,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 sv_re = get_svreg(SVt_regex);
             }
             sv_re->value.p = Re;
-            if(sv_pat && (sv_pat->flag & 3) == SVf_register){
-                SV_refdec(sv_pat);
-                sv_pat->flag = 0;
-                n_svreg--;
-            }
+            SV_refdec(sv_pat);
             return sv_re;
         case OP_VarMatch:
             i = op->right.n;
@@ -3769,16 +4068,8 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                             }
                             tn_ret = strncmp(sv_s_a->value.S.s, sv_s_b->value.S.s, n);
                         }
-                        if(sv_s_a && (sv_s_a->flag & 3) == SVf_register){
-                            SV_refdec(sv_s_a);
-                            sv_s_a->flag = 0;
-                            n_svreg--;
-                        }
-                        if(sv_s_b && (sv_s_b->flag & 3) == SVf_register){
-                            SV_refdec(sv_s_b);
-                            sv_s_b->flag = 0;
-                            n_svreg--;
-                        }
+                        SV_refdec(sv_s_a);
+                        SV_refdec(sv_s_b);
                         switch (op->type){
                             case OP_eq:
                                 sv = tn_ret == 0 ? sv_TRUE: sv_FALSE;
@@ -3806,34 +4097,34 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                     }
                     else if(op->type & 0x10){
                         if(sv_a->type == SVt_float || sv_b->type == SVt_float){
-                            f1 = do_float(sv_a);
-                            f2 = do_float(sv_b);
+                            f_1 = do_float(sv_a);
+                            f_2 = do_float(sv_b);
                             switch(op->type){
                                 case OP_EqEq:
-                                    sv = f1 == f2 ? sv_TRUE: sv_FALSE;
+                                    sv = f_1 == f_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_EmarkEq:
-                                    sv = f1 != f2 ? sv_TRUE: sv_FALSE;
+                                    sv = f_1 != f_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_Lt:
-                                    sv = f1 < f2 ? sv_TRUE: sv_FALSE;
+                                    sv = f_1 < f_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_Gt:
-                                    sv = f1 > f2 ? sv_TRUE: sv_FALSE;
+                                    sv = f_1 > f_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_LtEq:
-                                    sv = f1 <= f2 ? sv_TRUE: sv_FALSE;
+                                    sv = f_1 <= f_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_GtEq:
-                                    sv = f1 >= f2 ? sv_TRUE: sv_FALSE;
+                                    sv = f_1 >= f_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_LtEqGt:
                                     sv = get_svreg(SVt_undef);
-                                    if(f1 == f2){
+                                    if(f_1 == f_2){
                                         sv->type = SVt_int;
                                         sv->value.n = 0;
                                     }
-                                    else if(f1 < f2){
+                                    else if(f_1 < f_2){
                                         sv->type = SVt_int;
                                         sv->value.n = -1;
                                     }
@@ -3844,34 +4135,34 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                             }
                         }
                         else{
-                            n1 = do_int(sv_a);
-                            n2 = do_int(sv_b);
+                            n_1 = do_int(sv_a);
+                            n_2 = do_int(sv_b);
                             switch(op->type){
                                 case OP_EqEq:
-                                    sv = n1 == n2 ? sv_TRUE: sv_FALSE;
+                                    sv = n_1 == n_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_EmarkEq:
-                                    sv = n1 != n2 ? sv_TRUE: sv_FALSE;
+                                    sv = n_1 != n_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_Lt:
-                                    sv = n1 < n2 ? sv_TRUE: sv_FALSE;
+                                    sv = n_1 < n_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_Gt:
-                                    sv = n1 > n2 ? sv_TRUE: sv_FALSE;
+                                    sv = n_1 > n_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_LtEq:
-                                    sv = n1 <= n2 ? sv_TRUE: sv_FALSE;
+                                    sv = n_1 <= n_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_GtEq:
-                                    sv = n1 >= n2 ? sv_TRUE: sv_FALSE;
+                                    sv = n_1 >= n_2 ? sv_TRUE: sv_FALSE;
                                     break;
                                 case OP_LtEqGt:
                                     sv = get_svreg(SVt_undef);
-                                    if(n1 == n2){
+                                    if(n_1 == n_2){
                                         sv->type = SVt_int;
                                         sv->value.n = 0;
                                     }
-                                    else if(n1 < n2){
+                                    else if(n_1 < n_2){
                                         sv->type = SVt_int;
                                         sv->value.n = -1;
                                     }
@@ -3886,18 +4177,15 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 else{
                     if(op->type & 0x40){
                         if(op->type == OP_Dot){
-                            if(!((sv_a->flag & 3) == SVf_register)){
-                                puts("assert error: ! ((sv_a->flag&3)==SVf_register)");
-                                exit(0);
-                            }
-                            if(sv_a->type == SVt_string){
+                            if((sv_a->flag & 3) == SVf_register && sv_a->type == SVt_string){
                                 sv = sv_a;
                                 sv_a = NULL;
+                                SV_string_on_write(sv);
                             }
                             else{
-                                sv = do_string(sv_a);
+                                sv = get_svreg(SVt_string);
+                                SV_append_sv(sv, sv_a);
                             }
-                            SV_string_on_write(sv);
                             SV_append_sv(sv, sv_b);
                         }
                         else if(op->type == OP_x){
@@ -3906,11 +4194,7 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                             n = do_int(sv_b);
                             if(sv_a->type != SVt_string){
                                 sv_s_a = do_string(sv_a);
-                                if(sv_a && (sv_a->flag & 3) == SVf_register){
-                                    SV_refdec(sv_a);
-                                    sv_a->flag = 0;
-                                    n_svreg--;
-                                }
+                                SV_refdec(sv_a);
                                 sv_a = sv_s_a;
                             }
                             s_a = sv_a->value.S.s;
@@ -3926,79 +4210,71 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                     }
                     else if(op->type & 0x10){
                         if(sv_a->type == SVt_float || sv_b->type == SVt_float || op->type == OP_Div || op->type == OP_MultMult){
-                            f1 = do_float(sv_a);
-                            f2 = do_float(sv_b);
+                            f_1 = do_float(sv_a);
+                            f_2 = do_float(sv_b);
                             if(op->type == OP_Plus){
-                                f1 += f2;
+                                f_1 += f_2;
                             }
                             else if(op->type == OP_Minus){
-                                f1 -= f2;
+                                f_1 -= f_2;
                             }
                             else if(op->type == OP_Mult){
-                                f1 *= f2;
+                                f_1 *= f_2;
                             }
                             else if(op->type == OP_Div){
-                                f1 /= f2;
+                                f_1 /= f_2;
                             }
                             else if(op->type == OP_MultMult){
-                                f1 = pow(f1, f2);
+                                f_1 = pow(f_1, f_2);
                             }
                             sv = get_svreg(SVt_undef);
                             sv->type = SVt_float;
-                            sv->value.f = f1;
+                            sv->value.f = f_1;
                             goto done_bin;
                         }
                         if(1){
-                            n1 = do_int(sv_a);
-                            n2 = do_int(sv_b);
+                            n_1 = do_int(sv_a);
+                            n_2 = do_int(sv_b);
                             if(op->type == OP_Plus){
-                                n1 += n2;
+                                n_1 += n_2;
                             }
                             else if(op->type == OP_Minus){
-                                n1 -= n2;
+                                n_1 -= n_2;
                             }
                             else if(op->type == OP_Mult){
-                                n1 *= n2;
+                                n_1 *= n_2;
                             }
                             else if(op->type == OP_Div){
-                                n1 /= n2;
+                                n_1 /= n_2;
                             }
                             else if(op->type == OP_Mod){
-                                n1 %= n2;
+                                n_1 %= n_2;
                             }
                             else if(op->type == OP_Or){
-                                n1 |= n2;
+                                n_1 |= n_2;
                             }
                             else if(op->type == OP_And){
-                                n1 &= n2;
+                                n_1 &= n_2;
                             }
                             else if(op->type == OP_Ctrl){
-                                n1 ^= n2;
+                                n_1 ^= n_2;
                             }
                             else if(op->type == OP_GtGt){
-                                n1 >>= n2;
+                                n_1 >>= n_2;
                             }
                             else if(op->type == OP_LtLt){
-                                n1 <<= n2;
+                                n_1 <<= n_2;
                             }
                             sv = get_svreg(SVt_undef);
                             sv->type = SVt_int;
-                            sv->value.n = n1;
+                            sv->value.n = n_1;
                             goto done_bin;
                         }
                     }
                 }
                 done_bin:
-                if(sv_a && (sv_a->flag & 3) == SVf_register){
-                    SV_refdec(sv_a);
-                    sv_a->flag = 0;
-                    n_svreg--;
-                }
-                if(sv_b && (sv_b->flag & 3) == SVf_register){
-                    SV_refdec(sv_b);
-                    sv_b->flag = 0;
-                    n_svreg--;
-                }
+                SV_refdec(sv_a);
+                SV_refdec(sv_b);
                 if(!sv){
                     fprintf(stderr, "unhandled bin op\n");
                     exit(-1);
@@ -4017,74 +4293,66 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
                 }
                 else if(op->type & 0x10){
                     if(sv_a->type == SVt_float || sv_b->type == SVt_float || op->type == OP_DivEq || op->type == OP_MultMultEq){
-                        f1 = do_float(sv_a);
-                        f2 = do_float(sv_b);
+                        f_1 = do_float(sv_a);
+                        f_2 = do_float(sv_b);
                         if(op->type == OP_PlusEq){
-                            f1 += f2;
+                            f_1 += f_2;
                         }
                         else if(op->type == OP_MinusEq){
-                            f1 -= f2;
+                            f_1 -= f_2;
                         }
                         else if(op->type == OP_MultEq){
-                            f1 *= f2;
+                            f_1 *= f_2;
                         }
                         else if(op->type == OP_DivEq){
-                            f1 /= f2;
+                            f_1 /= f_2;
                         }
                         SV_to_float(sv_a);
                         sv_a->type = SVt_float;
-                        sv_a->value.f = f1;
+                        sv_a->value.f = f_1;
                     }
                     if(1){
-                        n1 = do_int(sv_a);
-                        n2 = do_int(sv_b);
+                        n_1 = do_int(sv_a);
+                        n_2 = do_int(sv_b);
                         if(op->type == OP_PlusEq){
-                            n1 += n2;
+                            n_1 += n_2;
                         }
                         else if(op->type == OP_MinusEq){
-                            n1 -= n2;
+                            n_1 -= n_2;
                         }
                         else if(op->type == OP_MultEq){
-                            n1 *= n2;
+                            n_1 *= n_2;
                         }
                         else if(op->type == OP_DivEq){
-                            n1 /= n2;
+                            n_1 /= n_2;
                         }
                         else if(op->type == OP_ModEq){
-                            n1 %= n2;
+                            n_1 %= n_2;
                         }
                         else if(op->type == OP_OrEq){
-                            n1 |= n2;
+                            n_1 |= n_2;
                         }
                         else if(op->type == OP_AndEq){
-                            n1 &= n2;
+                            n_1 &= n_2;
                         }
                         else if(op->type == OP_CtrlEq){
-                            n1 ^= n2;
+                            n_1 ^= n_2;
                         }
                         else if(op->type == OP_GtGtEq){
-                            n1 >>= n2;
+                            n_1 >>= n_2;
                         }
                         else if(op->type == OP_LtLtEq){
-                            n1 <<= n2;
+                            n_1 <<= n_2;
                         }
                         SV_to_int(sv_a);
                         sv_a->type = SVt_int;
-                        sv_a->value.n = n1;
+                        sv_a->value.n = n_1;
                     }
                 }
                 done_opeq:
                 sv_ret = SV_copy(NULL, sv_a);
-                if(sv_a && (sv_a->flag & 3) == SVf_register){
-                    SV_refdec(sv_a);
-                    sv_a->flag = 0;
-                    n_svreg--;
-                }
-                if(sv_b && (sv_b->flag & 3) == SVf_register){
-                    SV_refdec(sv_b);
-                    sv_b->flag = 0;
-                    n_svreg--;
-                }
+                SV_refdec(sv_a);
+                SV_refdec(sv_b);
                 return sv_ret;
             }
             break;
@@ -4094,34 +4362,33 @@ struct SV* eval_op(struct OP* op, int tn_context, int tn_level){
     return NULL;
 }
 
-void* do_string(struct SV* sv){
-    struct SV* sv_r;
+void f_dump_sv(struct SV* sv){
+    struct AV* av;
+    struct SV* sv_str;
 
-    if(!sv || sv->type == SVt_undef){
-        return NULL;
+    if(!sv){
+        puts("(null)");
     }
-    if(sv->type == SVt_string){
-        return SV_copy(NULL, sv);
-    }
-    sv_r = get_svreg(SVt_string);
-    sv_r->value.S.s = NULL;
-    sv_r->value.S.n = 0;
-    sv_r->value.S.size = 0;
-    if(sv->type == SVt_int){
-        SV_append_i(sv_r, sv->value.n);
-    }
-    else if(sv->type == SVt_float){
-        SV_append_f(sv_r, sv->value.f);
+    else if(sv->type == SVt_av){
+        int i;
+        av = (struct AV*)sv->value.p;
+        for(i=av->i_0; i<av->i_n; i++){
+            f_dump_sv(av->p_array[i]);
+            printf(" ");
+        }
     }
     else{
-        fprintf(stderr, "do_string type [%s] not supported\n", get_SV_name(sv->type));
-        exit(-1);
+        sv_str = do_string(sv);
+        if(sv_str){
+            sv_str->value.S.s[sv_str->value.S.n] = '\0';
+            printf("  %s", sv_str->value.S.s);
+        }
+        SV_refdec(sv_str);
     }
-    return sv_r;
 }
 
 void SV_refdec(struct SV* sv){
-    if(sv->refcnt > 0){
+    if(sv && sv->refcnt > 0){
         sv->refcnt--;
         if(sv->refcnt == 0){
             if(sv->copy){
@@ -4137,7 +4404,7 @@ void SV_refdec(struct SV* sv){
                     n_svcopy--;
                 }
                 else{
-                    return;
+                    goto sv_release;
                 }
             }
             else if(sv->type == SVt_string){
@@ -4163,9 +4430,14 @@ void SV_refdec(struct SV* sv){
                 }
                 sv->value.p = NULL;
             }
+            sv_release:
+            if((sv->flag & 3) == SVf_register){
+                sv->flag = 0;
+                n_svreg--;
+            }
         }
     }
-    return ;
+    return;
 }
 
 void dump_parse_stack(struct TOK* stack, int i_top, struct TOK cur, char* s){
@@ -4194,6 +4466,72 @@ void dump_parse_stack(struct TOK* stack, int i_top, struct TOK cur, char* s){
     else{
         puts("");
     }
+}
+
+void f_commit_local_names(){
+    struct strpool* p_strpool;
+    int k;
+
+    if(local_vars_len > 0){
+        int i;
+        p_strpool = &local_names;
+        for(i=0; i<local_vars_len; i+=2){
+            k = f_strhash_lookup_left(stash_local, (unsigned char*)(p_strpool->pc_pool + p_strpool->pn_str[local_vars[i]]), (p_strpool->pn_str[local_vars[i]+1] - p_strpool->pn_str[local_vars[i]] - 1));
+            stash_local->p_val[k] = local_vars[i+1];
+        }
+        local_vars_len = 0;
+        p_strpool->i_str = 0;
+        p_strpool->i_pool = 0;
+    }
+}
+
+void CV_begin(){
+    if(cv_cur){
+        cv_cur->n_vars = g_local_len - cv_cur->i_start;
+        cv_cur->n_seq = i_seq;
+    }
+    if(lex_stack_len + 1 > lex_stack_size){
+        lex_stack = f_darray_expand(lex_stack, sizeof(struct CV*), &lex_stack_size);
+    }
+    lex_stack[lex_stack_len] = cv_cur;
+    lex_stack_len++;
+    stash_local = stash_new();
+    cv_cur = CV_new();
+    cv_cur->stash = stash_local;
+    cv_cur->i_file = cur_file_scope;
+    cv_cur->i_start = g_local_len;
+    cv_cur->debug = n_debug;
+    if(n_debug){
+        puts(">>>> cv begin");
+    }
+    i_seq = 0;
+}
+
+struct CV* CV_close(struct OP* op_block){
+    struct CV* cv;
+
+    if(op_block->type == OP_SEQ){
+        f_flatten_op_list(op_block, OP_SEQ, OP_block);
+    }
+    cv_cur->op_block = op_block;
+    cv_cur->n_vars = g_local_len - cv_cur->i_start;
+    cv_cur->n_seq = i_seq;
+    cv = cv_cur;
+    lex_stack_len--;
+    cv_cur = lex_stack[lex_stack_len];
+    if(cv_cur){
+        g_local_len = cv_cur->i_start + cv_cur->n_vars;
+        i_seq = cv_cur->n_seq;
+        stash_local = cv_cur->stash;
+    }
+    if(n_debug){
+        printf("<<<< cv close ---");
+        fprintf(stdout, "    :lex_stack_len=%d, cv->n_vars=%d\n", lex_stack_len, cv->n_vars);
+    }
+    if(cv_cur){
+        n_debug = cv_cur->debug;
+    }
+    return cv;
 }
 
 char* f_skip_spaces(char* s){
@@ -4286,12 +4624,16 @@ char* f_get_number(char* s, struct SV* sv){
                 case '_': s++; break;
                 case '8': case '9': 
                     if(tn_shift == 3){
+                        struct TOK cur = {0,0};
                         puts("Illegal octal digit");
+                        dump_parse_stack(parse_stack, i_stack_top, cur, NULL);
                         exit(0);
                     }
                 case '2': case '3': case '4': case '5': case '6': case '7': 
                     if(tn_shift == 3){
+                        struct TOK cur = {0,0};
                         puts("Illegal binary digit");
+                        dump_parse_stack(parse_stack, i_stack_top, cur, NULL);
                         exit(0);
                     }
                 case '0': case '1': 
@@ -4512,7 +4854,8 @@ int my_word(char* s, int n){
         else if(n==4 && strncmp(s, "goto", 4)==0) return WORD_goto;
         break;
       case 'i':
-        if(n==2 && strncmp(s, "if", 2)==0) return WORD_if;
+        if(n==3 && strncmp(s, "int", 3)==0) return WORD_int;
+        else if(n==2 && strncmp(s, "if", 2)==0) return WORD_if;
         break;
       case 'j':
         if(n==4 && strncmp(s, "join", 4)==0) return WORD_join;
@@ -4720,28 +5063,6 @@ char* f_scan_delim(char* s, char** p_str, int* pn_len){
     return s;
 }
 
-void CV_begin(){
-    if(cv_cur){
-        cv_cur->n_vars = g_local_len - cv_cur->i_start;
-        cv_cur->n_seq = i_seq;
-    }
-    if(lex_stack_len + 1 > lex_stack_size){
-        lex_stack = f_darray_expand(lex_stack, sizeof(struct CV*), &lex_stack_size);
-    }
-    lex_stack[lex_stack_len] = cv_cur;
-    lex_stack_len++;
-    stash_local = stash_new();
-    cv_cur = CV_new();
-    cv_cur->stash = stash_local;
-    cv_cur->i_file = cur_file_scope;
-    cv_cur->i_start = g_local_len;
-    cv_cur->debug = n_debug;
-    if(n_debug){
-        puts(">>>> cv begin");
-    }
-    i_seq = 0;
-}
-
 void SV_append_s(struct SV* sv, char* s, int n){
     if(!(sv->type == SVt_string)){
         puts("assert error: ! (sv->type==SVt_string)");
@@ -4822,6 +5143,22 @@ int find_local(char* s_name){
     return 0;
 }
 
+void f_add_local_name(char* s_name, int n, int i_var){
+    int i_str;
+
+    i_str = f_addto_strpool(&local_names, s_name, n);
+    if(local_vars_len + 1 > local_vars_size){
+        local_vars = f_darray_expand(local_vars, sizeof(int), &local_vars_size);
+    }
+    local_vars[local_vars_len] = i_str;
+    local_vars_len++;
+    if(local_vars_len + 1 > local_vars_size){
+        local_vars = f_darray_expand(local_vars, sizeof(int), &local_vars_size);
+    }
+    local_vars[local_vars_len] = i_var;
+    local_vars_len++;
+}
+
 struct OP* f_parse_var_special(char char_sigil, char* s){
     struct OP* op;
 
@@ -4830,7 +5167,7 @@ struct OP* f_parse_var_special(char char_sigil, char* s){
         if(s[1] == '['){
             char_sigil = '@';
         }
-        else if(s[1] == '%'){
+        else if(s[1] == '{'){
             char_sigil = '%';
         }
     }
@@ -4881,8 +5218,13 @@ char* f_scan_operator(char* s, int* p_id){
         if(s[1]=='='){*p_id = T_EmarkEq;return s+2;}
         else{*p_id = T_Emark;return s+1;}
         break;
+      case '%':
+        if(s[1]=='='){*p_id = T_ModEq;return s+2;}
+        else{*p_id = T_Mod;return s+1;}
+        break;
       case '&':
-        if(s[1]=='='){*p_id = T_AndEq;return s+2;}
+        if(s[1]=='&'){*p_id = T_AndAnd;return s+2;}
+        else if(s[1]=='='){*p_id = T_AndEq;return s+2;}
         else{*p_id = T_And;return s+1;}
         break;
       case '*':
@@ -4910,7 +5252,6 @@ char* f_scan_operator(char* s, int* p_id){
         else{*p_id = T_Div;return s+1;}
         break;
       case ':': *p_id = T_Colon;return s+1;
-      case ';': *p_id = T_Semi;return s+1;
       case '<':
         if(s[1]=='<' && s[2]=='='){*p_id = T_LtLtEq;return s+3;}
         else if(s[1]=='='){*p_id = T_LtEq;return s+2;}
@@ -4931,17 +5272,14 @@ char* f_scan_operator(char* s, int* p_id){
         break;
       case '?': *p_id = T_Qmark;return s+1;
       case '|':
-        if(s[1]=='='){*p_id = T_OrEq;return s+2;}
+        if(s[1]=='|'){*p_id = T_OrOr;return s+2;}
+        else if(s[1]=='='){*p_id = T_OrEq;return s+2;}
         else{*p_id = T_Or;return s+1;}
         break;
       case '~': *p_id = T_Tlide;return s+1;
     }
     *p_id = 0;
     return s;
-}
-
-char* get_OP_name(int n_OP){
-    return OP_names[(n_OP>>8)-1];
 }
 
 struct OP* f_new_op(int tn_type, struct OP* op_a, struct OP* op_b){
@@ -4954,53 +5292,14 @@ struct OP* f_new_op(int tn_type, struct OP* op_a, struct OP* op_b){
     return op;
 }
 
-char * get_T_name(int n_type){
-    int tn_op;
-
-    tn_op = n_type >> 8;
-    if(tn_op){
-        return T_op_names[tn_op-1];
-    }
-    else{
-        return "T_ATOM";
-    }
-}
-
-struct CV* CV_close(struct OP* op_block){
-    struct CV* cv;
-
-    if(op_block->type == OP_SEQ){
-        f_flatten_op_list(op_block, OP_SEQ);
-        op_block->type = OP_block;
-    }
-    cv_cur->op_block = op_block;
-    cv_cur->n_vars = g_local_len - cv_cur->i_start;
-    cv_cur->n_seq = i_seq;
-    cv = cv_cur;
-    lex_stack_len--;
-    cv_cur = lex_stack[lex_stack_len];
-    if(cv_cur){
-        g_local_len = cv_cur->i_start + cv_cur->n_vars;
-        i_seq = cv_cur->n_seq;
-        stash_local = cv_cur->stash;
-    }
-    if(n_debug){
-        printf("<<<< cv close ---");
-        fprintf(stdout, "    :lex_stack_len=%d, cv->n_vars=%d\n", lex_stack_len, cv->n_vars);
-    }
-    if(cv_cur){
-        n_debug = cv_cur->debug;
-    }
-    return cv;
-}
-
-void f_flatten_op_list(struct OP* op, int tn_type){
+void f_flatten_op_list(struct OP* op, int tn_type, int tn_new_type){
     int n;
     struct OP* op_list;
 
     n = f_op_iter_count(op, tn_type);
     op_list = get_op_list(n);
     f_op_iter_get(op, tn_type, op_list);
+    op->type = tn_new_type;
     op->left.n = n;
     op->right.op = op_list;
 }
@@ -5040,154 +5339,76 @@ struct OP* get_op_list(int n){
     }
 }
 
-struct SV* run_cv(struct CV* cv, int tn_context, int tn_level){
-    int i_0;
-    int i_n;
-    int n_debug_save;
-    struct OP* op_block;
+char* get_OP_name(int n_OP){
+    return OP_names[(n_OP>>8)-1];
+}
+
+char * get_T_name(int n_type){
+    int tn_op;
+
+    tn_op = n_type >> 8;
+    if(tn_op){
+        return T_op_names[tn_op-1];
+    }
+    else{
+        return "T_ATOM";
+    }
+}
+
+struct SV* eval_list(struct OP* op, int tn_context, int tn_level){
+    struct SV* sv;
+    struct AV* av;
     int n;
     struct OP* op_list;
     int i;
-    struct SV* sv_ret;
+    struct SV* sv_item;
+    struct AV* av_item;
 
-    if(tn_level > 0){
-        i_0 = cv->i_start;
-        i_n = g_local_len;
-        if(cv->n_vars > 0){
-            memset(g_local + i_0, 0, cv->n_vars * sizeof(struct SV));
-            g_local_len += cv->n_vars;
+    sv = get_svreg(SVt_av);
+    av = AV_new();
+    sv->value.p = (void*)av;
+    if(!op){
+        return sv;
+    }
+    if(op->type == OP_list){
+        n = op->left.n;
+    }
+    else{
+        n = 1;
+    }
+    op_list = op->right.op;
+    for(i=0; i<n; i++){
+        sv_item = eval_op(&op_list[i], tn_context, tn_level + 1);
+        if(sv_item && sv_item->type == SVt_av){
+            int i2;
+            av_item = (struct AV*)sv_item->value.p;
+            if(!(av_item != av)){
+                puts("assert error: ! (av_item!=av)");
+                exit(0);
+            }
+            for(i2=av_item->i_0; i2<av_item->i_n; i2++){
+                AV_push(av, av_item->p_array[i2]);
+            }
         }
         else{
-            g_local_len = i_0;
+            AV_push(av, sv_item);
         }
+        SV_refdec(sv_item);
     }
-    else{
-        memset(g_local, 0, g_local_len * sizeof(struct SV));
-    }
-    if(cv->debug){
-        n_debug_save = n_debug;
-        n_debug = cv->debug;
-        printf("---- enter_scope: 0 global vars, %d local vars \n", cv->n_vars);
-    }
-    op_block = cv->op_block;
-    if(op_block->type == OP_block){
-        n = op_block->left.n;
-        op_list = op_block->right.op;
-        i = 0;
-        while(1){
-            if(cv->debug){
-                printf("cv_run %s [%d/%d]\n", cv->flag == CVf_loop ? "loop": "block", i, n);
-                if(n_svreg != 0){
-                    printf("    reg: %d\n", n_svreg);
-                }
-            }
-            sv_ret = eval_op(&op_list[i], 0, 0);
-            if(sv_ret && sv_ret->type == SVt_goto){
-                if(sv_ret->value.G.i > 0){
-                    if(!sv_ret->value.G.cv || sv_ret->value.G.cv == cv){
-                        i = sv_ret->value.G.i;
-                        if(i < n){
-                            if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                                SV_refdec(sv_ret);
-                                sv_ret->flag = 0;
-                                n_svreg--;
-                            }
-                            continue;
-                        }
-                    }
-                    if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                        SV_refdec(sv_ret);
-                        sv_ret->flag = 0;
-                        n_svreg--;
-                    }
-                    sv_ret = NULL;
-                    break;
-                }
-                else{
-                    if(sv_ret->value.G.cv != cv){
-                        break;
-                    }
-                    else if(sv_ret->value.G.i == GOTO_return){
-                        if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                            SV_refdec(sv_ret);
-                            sv_ret->flag = 0;
-                            n_svreg--;
-                        }
-                        sv_ret = NULL;
-                        break;
-                    }
-                    else if(cv->flag == CVf_loop){
-                        if(sv_ret->value.G.i == GOTO_last){
-                            if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                                SV_refdec(sv_ret);
-                                sv_ret->flag = 0;
-                                n_svreg--;
-                            }
-                            sv_ret = NULL;
-                            break;
-                        }
-                        else if(sv_ret->value.G.i == GOTO_next){
-                            if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                                SV_refdec(sv_ret);
-                                sv_ret->flag = 0;
-                                n_svreg--;
-                            }
-                            sv_ret = NULL;
-                            i += 1;
-                            continue;
-                        }
-                        else if(sv_ret->value.G.i == GOTO_redo){
-                            i -= 1;
-                            continue;
-                        }
-                    }
-                    else{
-                        if(sv_ret->value.G.i == GOTO_last || sv_ret->value.G.i == GOTO_next){
-                            if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                                SV_refdec(sv_ret);
-                                sv_ret->flag = 0;
-                                n_svreg--;
-                            }
-                            sv_ret = NULL;
-                            break;
-                        }
-                        else if(sv_ret->value.G.i == GOTO_redo){
-                            continue;
-                        }
-                    }
-                }
-            }
-            i++;
-            if(i < n){
-                if(sv_ret && (sv_ret->flag & 3) == SVf_register){
-                    SV_refdec(sv_ret);
-                    sv_ret->flag = 0;
-                    n_svreg--;
-                }
-            }
-            else{
-                break;
-            }
-        }
-    }
-    else{
-        sv_ret = eval_op(cv->op_block, 0, tn_level + 1);
-    }
-    if(cv->debug){
-        n_debug = n_debug_save;
-        puts("---- leave_scope");
-    }
-    if(tn_level > 0){
-        int i;
-        for(i=i_0; i<g_local_len; i++){
-            SV_refdec(&g_local[i]);
-        }
-        g_local_len = i_n;
-    }
-    return sv_ret;
+    return sv;
 }
 
-struct SV* SV_copy(struct SV* sv_ret, struct SV* sv){
+void* SV_copy(struct SV* sv_ret, struct SV* sv){
+    if(!sv){
+        if(!sv_ret){
+            return NULL;
+        }
+        else{
+            sv_ret->type = SVt_undef;
+            sv_ret->value.p = NULL;
+            return sv_ret;
+        }
+    }
     if(!sv_ret){
         sv_ret = get_svreg(sv->type);
     }
@@ -5205,77 +5426,6 @@ struct SV* SV_copy(struct SV* sv_ret, struct SV* sv){
     }
     memcpy(&sv_ret->value, &sv->value, sizeof(sv->value));
     return sv_ret;
-}
-
-struct SV* eval_list(struct OP* op_a, struct OP* op_b, int tn_context, int tn_level){
-    struct SV* sv_b;
-    struct SV* sv;
-    struct AV* av;
-    struct SV* sv_a;
-    struct AV* av_item;
-
-    sv_b = eval_op(op_b, 2, tn_level + 1);
-    if(!op_a){
-        if(sv_b->type == SVt_av){
-            return sv_b;
-        }
-        else{
-            sv = get_svreg(SVt_av);
-            av = AV_new();
-            sv->value.p = (void*)av;
-        }
-    }
-    else{
-        sv_a = eval_op(op_a, 2, tn_level + 1);
-        if((sv_a->flag & 3) == SVf_register && sv_a->type == SVt_av){
-            sv = sv_a;
-            av = (struct AV*)sv->value.p;
-        }
-        else{
-            sv = get_svreg(SVt_av);
-            av = AV_new();
-            sv->value.p = (void*)av;
-            if(sv_a && sv_a->type == SVt_av){
-                int i;
-                av_item = (struct AV*)sv_a->value.p;
-                if(!(av_item != av)){
-                    puts("assert error: ! (av_item!=av)");
-                    exit(0);
-                }
-                for(i=av_item->i_0; i<av_item->i_n; i++){
-                    AV_push(av, av_item->p_array[i]);
-                }
-            }
-            else{
-                AV_push(av, sv_a);
-            }
-            if(sv_a && (sv_a->flag & 3) == SVf_register){
-                SV_refdec(sv_a);
-                sv_a->flag = 0;
-                n_svreg--;
-            }
-        }
-    }
-    if(sv_b && sv_b->type == SVt_av){
-        int i;
-        av_item = (struct AV*)sv_b->value.p;
-        if(!(av_item != av)){
-            puts("assert error: ! (av_item!=av)");
-            exit(0);
-        }
-        for(i=av_item->i_0; i<av_item->i_n; i++){
-            AV_push(av, av_item->p_array[i]);
-        }
-    }
-    else{
-        AV_push(av, sv_b);
-    }
-    if(sv_b && (sv_b->flag & 3) == SVf_register){
-        SV_refdec(sv_b);
-        sv_b->flag = 0;
-        n_svreg--;
-    }
-    return sv;
 }
 
 struct SV* get_svreg(int tn_type){
@@ -5353,11 +5503,73 @@ void SV_to_int(struct SV* sv){
         n = sv_string_int(sv);
         sv->type = SVt_int;
         sv->value.n = n;
-        if(sv_tmp && (sv_tmp->flag & 3) == SVf_register){
-            SV_refdec(sv_tmp);
-            sv_tmp->flag = 0;
-            n_svreg--;
-        }
+        SV_refdec(sv_tmp);
+    }
+}
+
+void* do_string(struct SV* sv){
+    struct SV* sv_r;
+
+    if(!sv || sv->type == SVt_undef){
+        return NULL;
+    }
+    if(sv->type == SVt_string){
+        return SV_copy(NULL, sv);
+    }
+    sv_r = get_svreg(SVt_string);
+    sv_r->value.S.s = NULL;
+    sv_r->value.S.n = 0;
+    sv_r->value.S.size = 0;
+    if(sv->type == SVt_int){
+        SV_append_i(sv_r, sv->value.n);
+    }
+    else if(sv->type == SVt_float){
+        SV_append_f(sv_r, sv->value.f);
+    }
+    else{
+        fprintf(stderr, "do_string type [%s] not supported\n", get_SV_name(sv->type));
+        exit(-1);
+    }
+    return sv_r;
+}
+
+struct SV * AV_shift(struct AV* av){
+    if(av->i_n > av->i_0){
+        av->i_0++;
+        return av->p_array[av->i_0-1];
+    }
+    return NULL;
+}
+
+void SV_append_sv(struct SV* sv, struct SV* sv_b){
+    struct SV* sv_s_b;
+
+    sv_s_b = do_string(sv_b);
+    if(sv_s_b){
+        SV_append_s(sv, sv_s_b->value.S.s, sv_s_b->value.S.n);
+        SV_refdec(sv_s_b);
+    }
+}
+
+int do_int(struct SV* sv){
+    struct AV* av;
+
+    if(!sv || sv->type == SVt_undef){
+        return 0;
+    }
+    else if(sv->type == SVt_int){
+        return sv->value.n;
+    }
+    else if(sv->type == SVt_float){
+        return (int)sv->value.f;
+    }
+    else if(sv->type == SVt_av){
+        av = (struct AV*)sv->value.p;
+        return av->i_n - av->i_0;
+    }
+    else{
+        fprintf(stderr, "do_int type not supported [%s]\n", get_SV_name(sv->type));
+        exit(-1);
     }
 }
 
@@ -5371,14 +5583,6 @@ struct SV* AV_get(struct AV* av, int i){
     else{
         return NULL;
     }
-}
-
-struct SV * AV_shift(struct AV* av){
-    if(av->i_n > av->i_0){
-        av->i_0++;
-        return av->p_array[av->i_0-1];
-    }
-    return NULL;
 }
 
 void do_print(struct SV* sv_io, struct AV* av){
@@ -5404,7 +5608,9 @@ void do_print(struct SV* sv_io, struct AV* av){
             fprintf(file_out, "%f", sv->value.f);
         }
         else{
+            struct TOK cur = {0,0};
             puts("print unsupported sv");
+            dump_parse_stack(parse_stack, i_stack_top, cur, NULL);
             exit(0);
         }
     }
@@ -5485,11 +5691,7 @@ void do_printf(struct SV* sv_io, struct AV* av){
                         sv_str = SV_fmt(sv, *s, 0, 0, 0);
                         sv_str->value.S.s[sv_str->value.S.n] = '\0';
                         fputs(sv_str->value.S.s, file_out);
-                        if(sv_str && (sv_str->flag & 3) == SVf_register){
-                            SV_refdec(sv_str);
-                            sv_str->flag = 0;
-                            n_svreg--;
-                        }
+                        SV_refdec(sv_str);
                         s++;
                         s_fmt = s;
                         continue;
@@ -5534,28 +5736,6 @@ void HV_set(struct HV* hv, char* s_key, int len, struct SV* sv_value){
     hv->p_val[k] = sv_value;
 }
 
-int do_int(struct SV* sv){
-    struct AV* av;
-
-    if(!sv || sv->type == SVt_undef){
-        return 0;
-    }
-    else if(sv->type == SVt_int){
-        return sv->value.n;
-    }
-    else if(sv->type == SVt_float){
-        return (int)sv->value.f;
-    }
-    else if(sv->type == SVt_av){
-        av = (struct AV*)sv->value.p;
-        return av->i_n - av->i_0;
-    }
-    else{
-        fprintf(stderr, "do_int type not supported [%s]\n", get_SV_name(sv->type));
-        exit(-1);
-    }
-}
-
 void AV_set(struct AV* av, int i, struct SV* sv_value){
     int j;
 
@@ -5573,6 +5753,9 @@ void do_assign(struct SV* sv_var, struct SV* sv_val){
     struct AV* av;
     struct HV* hv;
     struct SV* sv_key;
+    struct SV* sv;
+    struct AV* av_val;
+    struct SV* sv_temp;
 
     if(!sv_var){
         return;
@@ -5593,27 +5776,47 @@ void do_assign(struct SV* sv_var, struct SV* sv_val){
             for(i=av->i_0; i<av->i_n; i+=2){
                 sv_key = do_string(av->p_array[i]);
                 if(sv_key && sv_key->type == SVt_string){
-                    HV_set(hv, sv_key->value.S.s, sv_key->value.S.n, av->p_array[i+1]);
+                    sv = get_sv(0);
+                    SV_copy(sv, av->p_array[i+1]);
+                    HV_set(hv, sv_key->value.S.s, sv_key->value.S.n, sv);
                 }
                 else{
                     fprintf(stderr, "error\n");
                     exit(-1);
                 }
             }
-            return ;
         }
         else{
             fprintf(stderr, "Error\n");
             exit(-1);
         }
     }
-    if(sv_var->type == SVt_av){
-        if(sv_val->type != SVt_av){
+    else if(sv_var->type == SVt_av){
+        if(sv_val->type == SVt_av){
+            int i;
+            av = AV_new();
+            sv_var->value.p = av;
+            av_val = (struct AV*)sv_val->value.p;
+            for(i=av_val->i_0; i<av_val->i_n; i++){
+                sv_temp = get_sv(0);
+                SV_copy(sv_temp, av_val->p_array[i]);
+                AV_push(av, sv_temp);
+                SV_refdec(sv_temp);
+            }
+        }
+        else{
             fprintf(stderr, "Error\n");
             exit(-1);
         }
     }
-    SV_copy(sv_var, sv_val);
+    else if(sv_val->type == SVt_av){
+        av = (struct AV*)sv_val->value.p;
+        sv_var->type = SVt_int;
+        sv_var->value.n = av->i_n - av->i_0;
+    }
+    else{
+        SV_copy(sv_var, sv_val);
+    }
 }
 
 void SV_undef(struct SV* sv){
@@ -5638,20 +5841,6 @@ void AV_free(struct AV* av){
         free(av->p_array);
     }
     free(av);
-}
-
-void SV_append_sv(struct SV* sv, struct SV* sv_b){
-    struct SV* sv_s_b;
-
-    sv_s_b = do_string(sv_b);
-    if(sv_s_b){
-        SV_append_s(sv, sv_s_b->value.S.s, sv_s_b->value.S.n);
-        if(sv_s_b && (sv_s_b->flag & 3) == SVf_register){
-            SV_refdec(sv_s_b);
-            sv_s_b->flag = 0;
-            n_svreg--;
-        }
-    }
 }
 
 float do_float(struct SV* sv){
@@ -5752,40 +5941,8 @@ void SV_to_float(struct SV* sv){
         f = sv_string_float(sv);
         sv->type = SVt_float;
         sv->value.f = f;
-        if(sv_tmp && (sv_tmp->flag & 3) == SVf_register){
-            SV_refdec(sv_tmp);
-            sv_tmp->flag = 0;
-            n_svreg--;
-        }
+        SV_refdec(sv_tmp);
     }
-}
-
-void SV_append_i(struct SV* sv, int i){
-    int n;
-
-    if(!(sv->type == SVt_string)){
-        puts("assert error: ! (sv->type==SVt_string)");
-        exit(0);
-    }
-    SV_resize(sv, sv->value.S.n + 30);
-    n = sprintf(sv->value.S.s + sv->value.S.n, "%d", i);
-    sv->value.S.n += n;
-}
-
-void SV_append_f(struct SV* sv, double f){
-    int n;
-
-    if(!(sv->type == SVt_string)){
-        puts("assert error: ! (sv->type==SVt_string)");
-        exit(0);
-    }
-    SV_resize(sv, sv->value.S.n + 30);
-    n = sprintf(sv->value.S.s + sv->value.S.n, "%.8g", f);
-    sv->value.S.n += n;
-}
-
-char* get_SV_name(int n_type){
-    return SV_names[n_type];
 }
 
 void HV_free(struct HV* hv){
@@ -5800,6 +5957,13 @@ void HV_free(struct HV* hv){
     free(hv->p_val);
     free(hv->pool.pn_str);
     free(hv->pool.pc_pool);
+}
+
+struct CV* CV_new(){
+    struct CV* cv;
+
+    cv=(struct CV*)calloc(1, sizeof(struct CV));
+    return cv;
 }
 
 char* f_load_src(char* s){
@@ -6103,9 +6267,10 @@ struct OP* f_parse_str_qq(char* s, bool is_regex){
                     op_list->type = OP_LIST;
                     op_list->left.op = op_sep;
                     op_list->right.op = op_var;
+                    f_flatten_op_list(op_list, OP_LIST, OP_list);
                     op_var = get_op();
-                    op_var->type = OP_join;
-                    op_var->right.op = NULL;
+                    op_var->type = OP_UNARY;
+                    op_var->left.n = WORD_join;
                     op_var->right.op = op_list;
                 }
                 if(d > s_begin){
@@ -6156,9 +6321,10 @@ struct OP* f_parse_str_qq(char* s, bool is_regex){
                     op_list->type = OP_LIST;
                     op_list->left.op = op_sep;
                     op_list->right.op = op_var;
+                    f_flatten_op_list(op_list, OP_LIST, OP_list);
                     op_var = get_op();
-                    op_var->type = OP_join;
-                    op_var->right.op = NULL;
+                    op_var->type = OP_UNARY;
+                    op_var->left.n = WORD_join;
                     op_var->right.op = op_list;
                 }
                 if(d > s_begin){
@@ -6236,9 +6402,10 @@ struct OP* f_parse_str_qq(char* s, bool is_regex){
                     op_list->type = OP_LIST;
                     op_list->left.op = op_sep;
                     op_list->right.op = op_var;
+                    f_flatten_op_list(op_list, OP_LIST, OP_list);
                     op_var = get_op();
-                    op_var->type = OP_join;
-                    op_var->right.op = NULL;
+                    op_var->type = OP_UNARY;
+                    op_var->left.n = WORD_join;
                     op_var->right.op = op_list;
                 }
                 if(d > s_begin){
@@ -6313,7 +6480,9 @@ char* f_get_v_string(char* s, struct SV* sv){
                 pc_buf[n++] = u;
             }
             else{
+                struct TOK cur = {0,0};
                 puts("not supported vstring char");
+                dump_parse_stack(parse_stack, i_stack_top, cur, NULL);
                 exit(0);
             }
             SV_append_s(sv, (char*)pc_buf, n);
@@ -6327,7 +6496,9 @@ char* f_get_v_string(char* s, struct SV* sv){
         pc_buf[n++] = u;
     }
     else{
+        struct TOK cur = {0,0};
         puts("not supported vstring char");
+        dump_parse_stack(parse_stack, i_stack_top, cur, NULL);
         exit(0);
     }
     SV_append_s(sv, (char*)pc_buf, n);
@@ -6382,24 +6553,17 @@ char* f_scan_delim_quick(char* s){
     }
 }
 
-struct CV* CV_new(){
-    struct CV* cv;
-
-    cv=(struct CV*)calloc(1, sizeof(struct CV));
-    return cv;
-}
-
 int f_op_iter_count(struct OP* op, int tn_type){
-    int8_t n1;
-    int16_t n2;
+    int n_1;
+    int n_2;
 
     if(op->type != tn_type){
         return 1;
     }
     else{
-        n1 = f_op_iter_count(op->left.op, tn_type);
-        n2 = f_op_iter_count(op->right.op, tn_type);
-        return n1 + n2;
+        n_1 = f_op_iter_count(op->left.op, tn_type);
+        n_2 = f_op_iter_count(op->right.op, tn_type);
+        return n_1 + n_2;
     }
 }
 
@@ -6437,12 +6601,36 @@ int sv_string_int(struct SV* sv){
     sv->value.S.s[sv->value.S.n] = '\0';
     f_get_number(sv->value.S.s, sv_tmp);
     n = do_int(sv_tmp);
-    if(sv_tmp && (sv_tmp->flag & 3) == SVf_register){
-        SV_refdec(sv_tmp);
-        sv_tmp->flag = 0;
-        n_svreg--;
-    }
+    SV_refdec(sv_tmp);
     return n;
+}
+
+void SV_append_i(struct SV* sv, int i){
+    int n;
+
+    if(!(sv->type == SVt_string)){
+        puts("assert error: ! (sv->type==SVt_string)");
+        exit(0);
+    }
+    SV_resize(sv, sv->value.S.n + 30);
+    n = sprintf(sv->value.S.s + sv->value.S.n, "%d", i);
+    sv->value.S.n += n;
+}
+
+void SV_append_f(struct SV* sv, double f){
+    int n;
+
+    if(!(sv->type == SVt_string)){
+        puts("assert error: ! (sv->type==SVt_string)");
+        exit(0);
+    }
+    SV_resize(sv, sv->value.S.n + 30);
+    n = sprintf(sv->value.S.s + sv->value.S.n, "%.8g", f);
+    sv->value.S.n += n;
+}
+
+char* get_SV_name(int n_type){
+    return SV_names[n_type];
 }
 
 struct SV* SV_fmt(struct SV* sv, char char_fmt, int n_width, int n_prec, int n_flag){
@@ -6525,11 +6713,7 @@ double sv_string_float(struct SV* sv){
     sv->value.S.s[sv->value.S.n] = '\0';
     f_get_number(sv->value.S.s, sv_tmp);
     f = do_float(sv_tmp);
-    if(sv_tmp && (sv_tmp->flag & 3) == SVf_register){
-        SV_refdec(sv_tmp);
-        sv_tmp->flag = 0;
-        n_svreg--;
-    }
+    SV_refdec(sv_tmp);
     return f;
 }
 
