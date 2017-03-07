@@ -1,0 +1,113 @@
+fncode: f_optimize(op)
+    $(set:L=op->left.op)
+    $(set:R=op->right.op)
+    switch(op->type){
+        case OP_NOOP:
+            break
+        case OP_CONST:
+            # $print OP_CONST
+            # op->ret_type = op->right.sv->type
+            break
+        case OP_SEQ:
+            f_flatten_op_list(op, OP_SEQ, OP_block)
+            $call optimize_list
+        case OP_LIST:
+            f_flatten_op_list(op, OP_LIST, OP_list)
+            $call optimize_list
+        case OP_block:
+        case OP_list:
+        case OP_IF:
+            $call optimize_list
+        case OP_CV:
+            $(recurse)(op->right.cv->op_block)
+            break
+        case OP_UNARY:
+        case OP_RETURN:
+            $(recurse)($(R))
+            break
+        case OP_Fcall:
+            $(recurse)($(R))
+            sv_name = op->left.sv
+            &call with_sv_string, sv_name
+                $(s)[$(n)]='\0'
+                i_sub = find_global($(s))
+                $if i_sub
+                    op->type=OP_fcall
+                    op->left.n=i_sub
+                    NOOP
+                $else
+                    $call die, "Undefined subroutine %s", $(s)
+        default:
+            $if $(op_is_bin)
+                $(recurse)($(L))
+                $(recurse)($(R))
+                $call optimize_bin_op
+            break
+    }
+    # ---------------
+    subcode: optimize_list
+        op_list = op->right.op
+        $for i=0:op->left.n
+            $(recurse)(&op_list[i])
+        break
+
+    subcode: optimize_bin_op
+        $if $(R)->type == OP_CONST
+            sv = $(R)->right.sv
+            $if sv->type==SVt_int
+                $(R)->left.n = op->type
+                op->type = OP_bin_const_int
+            $elif sv->type==SVt_float
+                $(R)->left.n = op->type
+                op->type = OP_bin_const_float
+
+#---------------------------------------- 
+subcode:: define_ops
+    $map define_op, bin_const_int, bin_const_float
+
+subcode:: eval_op_cases
+    case OP_bin_const_int:
+        $call op_bin_const, n
+    case OP_bin_const_float:
+        $call op_bin_const, f
+
+    subcode: op_bin_const(n)
+        sv_a = eval_op($(L), $(CTX_SCALAR))
+        $(n)_2 = $(R)->right.sv->value.$(n)
+        $(if:n=f)
+            SV_to_float(sv_a)
+            $call op_bin_const_switch, f, $(n)_2
+        $(else)
+            $if sv_a->type==SVt_float
+                $call op_bin_const_switch, f, $(n)_2
+            $else
+                SV_to_int(sv_a)
+                $call op_bin_const_switch, n, $(n)_2
+        return sv_a
+
+    subcode: op_bin_const_switch(n, n2)
+        switch($(R)->left.n){
+            $(for:+,-)
+                case OP_$(sym:$1):
+                    sv_a->value.$(n) $1= $(n2)
+                    break
+            $(for:<,>)
+                case OP_$(sym:$1):
+                    $if sv_a->value.$(n) $1 $(n2)
+                        sv_a->value.n = 1
+                    $else
+                        sv_a->value.n = 0
+                    sv_a->type = SVt_int
+                    break
+            default:
+                $call die, "OP_bin_const_int: unsupported op %s", get_OP_name($(R)->left.n)
+        }
+        
+
+#---------------------------------------- 
+subcode: optimize
+    f_optimize(cv_main->op_block)
+    $for i=1:subs_len
+        f_optimize(subs[i]->op_block)
+
+
