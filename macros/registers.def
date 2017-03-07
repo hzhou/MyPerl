@@ -12,7 +12,8 @@ subcode: _autoload
 fncode: get_svreg(tn_type)
     $return_type struct SV*
     $if n_svreg>=$(N_REGS)
-        $call die, "Out of SV registers!"
+        $print registers exhausted
+        return get_sv(tn_type)
 
     $while svregs[i_svreg].flag
         $call inc_i_svreg
@@ -32,7 +33,8 @@ fncode: get_svreg(tn_type)
         $call sv_init, sv, tn_type
 
 subcode: ret_svreg(sv)
-    SV_refdec($(sv))
+    $if $(sv)
+        SV_refdec($(sv))
 
 subcode: ret_svreg_borrow(sv)
     # when its content (av or string) been taken

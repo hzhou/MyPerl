@@ -42,7 +42,7 @@ macros:
     sv_size: sizeof(struct SV)
     sv_is_reg: ($1->flag)==SVf_register
     sv_is_const: ($1->flag)==SVf_const
-    sv_is_heap: ($1->flag)==SVf_var
+    sv_is_heap: ($1->flag)==SVf_heap
     
 #----------------------------------------------- 
 subcode: sv_set_type(sv, sigil)

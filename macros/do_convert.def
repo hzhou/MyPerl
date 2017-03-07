@@ -4,7 +4,8 @@ fncode: do_string(sv)
     $if !sv || $(T:undef)
         return NULL
     $if $(T:string)
-        return SV_copy(NULL, sv)
+        # return SV_copy(NULL, sv)
+        return sv
 
     $call get_string_reg, sv_r
 
@@ -16,6 +17,7 @@ fncode: do_string(sv)
     $else
         $call die, "do_string type [%s] not supported", get_SV_name(sv->type)
 
+    $call ret_svreg, sv
     return sv_r
 
 fncode: do_int(sv)

@@ -60,11 +60,8 @@ macros:
 
 subcode:: eval_op_group
     $if $(op_is_bin)
-        # $print eval bin L
         sv_a = eval_op($(L), $(CTX_SCALAR))
-        # $print eval bin R
         sv_b = eval_op($(R), $(CTX_SCALAR))
-        sv=NULL
         $if $(op_is_rel)
             $if $(op_is_string)
                 $call do_rel_string
@@ -78,9 +75,8 @@ subcode:: eval_op_group
                 $call do_bin_num
             $call @do_binary
         done_bin:
-        $map ret_svreg, sv_a, sv_b
-        $call @debug_eval_bin_op
-        return sv
+        $map ret_svreg, sv_b
+        return sv_a
     $elif $(op_is_opeq)
         sv_a = eval_op($(L), $(CTX_LEFT))
         sv_b = eval_op($(R), $(CTX_SCALAR))
@@ -97,15 +93,13 @@ subcode:: eval_op_group
 #----------------------------------------------- 
 subcode: do_bin_string
     $if $(opT:$(sym:.))
-        $call take_sv_a_string
-        SV_append_sv(sv, sv_b)
+        sv_a = do_string(sv_a)
+        SV_string_on_write(sv_a)
+        SV_append_sv(sv_a, sv_b)
     $elif $(opT:x)
         sv = get_svreg(SVt_string)
         n = do_int(sv_b)
-        $if sv_a->type!=SVt_string
-            sv_s_a = do_string(sv_a)
-            $call ret_svreg, sv_a
-            sv_a=sv_s_a
+        sv_a = do_string(sv_a)
         s_a = sv_a->value.S.s
         n_a = sv_a->value.S.n
         &call with_sv_string, sv
@@ -115,15 +109,8 @@ subcode: do_bin_string
             $for i=0:n
                 memcpy(s, s_a, n_a)
                 s+=n_a
-
-    subcode: take_sv_a_string
-        $if $(sv_is_reg:sv_a) && sv_a->type==SVt_string
-            sv=sv_a
-            sv_a=NULL
-            SV_string_on_write(sv)
-        $else
-            sv = get_svreg(SVt_string)
-            SV_append_sv(sv, sv_a)
+        $call ret_svreg, sv_a
+        sv_a = sv
 
 subcode: do_opeq_string
     SV_to_string(sv_a)
@@ -155,8 +142,8 @@ subcode: do_bin_num
             $elif $(opT:$(sym:**))
                 f_1 = pow(f_1, f_2)
         $call _sv_set, f
-    # int 
-    $if 1
+        goto done_bin
+    $if 1 # int 
         n_1 = do_int(sv_a)
         n_2 = do_int(sv_b)
         $(for:o in +,-,*,/,%,$(bit_ops_sym))
@@ -165,16 +152,11 @@ subcode: do_bin_num
         $call _sv_set, n
 
     subcode: _sv_set(f)
-        $(if:is_opeq)
-            $(if:f=f)
-                SV_to_float(sv_a)
-            $(else)
-                SV_to_int(sv_a)
-            $call sv_set_$(f), sv_a, $(f)_1
+        $(if:f=f)
+            SV_to_float(sv_a)
         $(else)
-            sv = get_svreg(SVt_undef)
-            $call sv_set_$(f), sv, $(f)_1
-            goto done_bin
+            SV_to_int(sv_a)
+        $call sv_set_$(f), sv_a, $(f)_1
         
 subcode: do_opeq_num
     $(set:is_opeq=1)
@@ -214,21 +196,21 @@ subcode: do_rel_num
             break
 
 subcode: do_rel_string
-    sv_s_a = do_string(sv_a)
-    sv_s_b = do_string(sv_b)
-    $if !sv_s_a && !sv_s_b
+    sv_a = do_string(sv_a)
+    sv_b = do_string(sv_b)
+    $if !sv_a && !sv_b
         tn_ret = 0
-    $elif !sv_s_a
+    $elif !sv_a
         tn_ret = -1
-    $elif !sv_s_b
+    $elif !sv_b
         tn_ret = 1
     $else
-        $(set:S=sv_s_$1->value.S)
+        $(set:S=sv_$1->value.S)
         n= $(S:a).n
         $call update_max, n, $(S:b).n
         tn_ret = strncmp($(S:a).s, $(S:b).s, n)
-    $map ret_svreg, sv_s_a, sv_s_b
-
+    $map ret_svreg, sv_a
+    sv_a = get_svreg(SVt_int)
     switch (op->type){
         $call bool_case, eq, tn_ret==0
         $call bool_case, ne, tn_ret!=0
@@ -237,13 +219,12 @@ subcode: do_rel_string
         $call bool_case, le, tn_ret<=0
         $call bool_case, ge, tn_ret>=0
         case OP_cmp:
-            sv = get_svreg(SVt_undef)
-            $call sv_set_n, sv, tn_ret
+            sv_a->value.n=tn_ret
     }
 
     subcode: bool_case(T, cond)
         case OP_$(T):
-            sv = $(cond)?sv_TRUE:sv_FALSE
+            sv_a->value.n = $(cond)?1:0
             break
 
 #---- or, and, ||, && --------------------------- 

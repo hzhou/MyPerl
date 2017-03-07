@@ -78,11 +78,10 @@ fncode: SV_resize(sv, n)
         # $print "SV_resize sv%p - %p - %d", sv, $(S).s, $(S).size
 
 fncode: SV_append_sv(sv, sv_b)
-    sv_s_b = do_string(sv_b)
-    $if sv_s_b
-        &call with_sv_string, sv_s_b
+    sv_b = do_string(sv_b)
+    $if sv_b
+        &call with_sv_string, sv_b
             SV_append_s(sv, $(s), $(n))
-        $call ret_svreg, sv_s_b
 
 fncode: SV_append_s(sv, s, n)
     $call assert, sv->type==SVt_string

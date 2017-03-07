@@ -51,4 +51,3 @@ fncode: f_dump_sv(sv)
             &call with_sv_string, sv_str
                 $(s)[$(n)]='\0'
                 $print "  %s-", $(s)
-        $call ret_svreg, sv_str

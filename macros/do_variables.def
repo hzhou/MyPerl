@@ -41,7 +41,9 @@ subcode:: eval_op_cases
             $if sv==NULL && $(IS_LEFT)
                 sv  = get_sv(0)
                 HV_set(hv, $(s), $(n), sv)
-        $map ret_svreg, sv_a, sv_b, sv_key
+            $elif sv && $(IS_SCALAR)
+                sv = SV_copy(NULL, sv)
+        $map ret_svreg, sv_a, sv_key
         return sv
     case OP_ARRAY_INDEX:
         sv_a = eval_op($(L), $(CTX_SCALAR))
@@ -134,14 +136,20 @@ fncode: do_assign(sv_var, sv_val)
         $if !hv
             hv = HV_new()
             $(dst)->value.p = hv
+        sv_key = NULL
+        $my s, n
         &call av_each_pair, av
-            sv_key = do_string($(sv))
-            &call if_sv_string, sv_key
-                sv = get_sv(0)
-                SV_copy(sv, $(sv2))
-                HV_set(hv, $(s), $(n), sv)
+            $if !$(sv)
+                $call die, "error hash key"
+            $if $(sv)->type==SVt_string
+                s=$(sv)->value.S.s
+                n=$(sv)->value.S.n
             $else
-                # null
-                $call die, "error"
-
+                SV_copy(sv_key, $(sv))
+                SV_to_string(sv_key)
+                s=sv_key->value.S.s
+                n=sv_key->value.S.n
+            sv = get_sv(0)
+            SV_copy(sv, $(sv2))
+            HV_set(hv, s, n, sv)
 

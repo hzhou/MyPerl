@@ -12,13 +12,13 @@ subcode:: basic_constants
     $global sv_TRUE, sv_FALSE
     $(for:TRUE,FALSE)
         sv_$1 = get_sv(0)
-        sv_$1->refcnt = -1
+        sv_$1->refcnt = 0
     $call sv_set_n, sv_TRUE, 1
     $call sv_set_n, sv_FALSE, 0
 
     $global sv_EMPTY
     sv_EMPTY = sv_from_s("", 0)
-    sv_EMPTY->refcnt = -1
+    sv_EMPTY->refcnt = 0
 
 #----------------------------------------------- 
 subcode:: universal_vars

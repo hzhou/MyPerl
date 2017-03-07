@@ -19,6 +19,8 @@ include: macros/parse.def
 include: macros/eval_op.def
 include: macros/repl.def
 
+include: macros/optimize.def
+
 include: macros/do_convert.def
 include: macros/do_bin_ops.def
 include: macros/do_functions.def # buiit-ins
@@ -61,6 +63,7 @@ fncode: run_script(s_file)
     $call @load_modules
 
     stash_global = g_stashes[1]
+    $call optimize
     $call run, cv_main
 
 #---------------------------------------- 

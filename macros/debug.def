@@ -70,10 +70,6 @@ subcode: debug_eval_op
             fputs("  ", stdout)
         $print "eval: %s", get_OP_name(op->type)
 
-subcode: debug_eval_bin_op
-    $if !sv
-        $call die, "unhandled bin op"
-
 subcode: debug_cv_run_op_block
     $if cv->debug
         $print "cv_run %s [$i/$n]", cv->flag==CVf_loop?"loop":"block"

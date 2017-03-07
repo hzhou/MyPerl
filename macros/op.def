@@ -1,7 +1,8 @@
 subcode: _autoload
     $register_prefix(op) struct OP*
-    $struct(OP) int type, union left, union right
-    $union op, n, sv, cv
+    $(set:t=unsigned short)
+    $struct(OP) $(t) type, $(t) ret_type, union left, union right
+    $union op, n, f, sv, cv
 
     $global char* OP_names[]={DUMP_STUB OP_names}
 

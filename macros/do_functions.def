@@ -54,6 +54,7 @@ subcode:: eval_fn_cases
     # -----------------------
     subcode: unary_string_op
         sv_ret = do_string(sv_right)
+        sv_right=NULL
         $if sv_ret
             &call with_sv_string, sv_ret
                 s = $(s)

@@ -6,7 +6,7 @@ fncode: get_op_list(n)
     $(set:op_size=sizeof(struct OP))
     return (struct OP*) calloc(n,$(op_size))
 
-
+#---------------------------------------- 
 fncode: get_sv(tn_type)
     sv = (struct SV*) calloc(1,$(sv_size))
     sv->type=tn_type
@@ -14,3 +14,6 @@ fncode: get_sv(tn_type)
     sv->flag=SVf_heap
     return sv
 
+subcode:: sv_release
+    $case $(sv_is_heap:sv)
+        free(sv)

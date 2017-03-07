@@ -41,7 +41,7 @@ subcode: add_sub(name, len, cv)
 
 #----------------------------------------------- 
 subcode:: define_ops
-    $call define_op, Fcall
+    $map define_op, Fcall, fcall
 
 subcode:: parse_bareword
     $case s && *s=='('
@@ -64,13 +64,15 @@ subcode:: eval_op_cases
         &call with_sv_string, sv_name
             $(s)[$(n)]='\0'
             i_sub = find_global($(s))
-            # printf("Calling %.*s -- %d \n", $(n), $(s), i_sub)
-        $if i_sub
-            cv = subs[i_sub]
-            sv_arg = eval_op(op->right.op, $(CTX_LIST))
-            $call run_sub
-        $else
-            $call die, "Undefined subroutine %s", sv_name->value.S.s
+            $if !i_sub
+                $call die, "Undefined subroutine %s", $(s)
+        op->left.n=i_sub
+        op->type = OP_fcall
+    case OP_fcall:
+        i_sub=op->left.n
+        cv = subs[i_sub]
+        sv_arg = eval_op(op->right.op, $(CTX_LIST))
+        $call run_sub
         return NULL
 
 #---------------
