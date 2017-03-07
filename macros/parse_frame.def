@@ -9,18 +9,16 @@ macros:
     MAX_TOK_STACK: 100
 
 # f_skip_spaces: custom function
-#     which [re]loads src string
-#     , and skips spaces and comments, 
-#     returns NULL on EOF
+#     which [re]loads src string, and skips spaces and comments, returns NULL on EOF
+
+# stack, i_top: global if we want re-entrant
 
 subcode: parse_frame
     $if i_top == 0
-        stack[0].type = T_BOC
+        stack[0].type = T_BOS
         stack[0].value.n = 0
         i_top=1
-    # ---- either setup new stack 
-    #      or passed in from function parameter
-    # $local struct TOK* stack, i_top
+        $call @on_bof # usually we insert a T_BOS here
     # ----------------------
     $local struct TOK cur={0,0}
     $call @parse_init
@@ -40,6 +38,7 @@ subcode: parse_frame
         $call error, "unexpected char"
 
         try_reduce:
+        # note: atom go directly to do_shift
         $call assert, $(is_op:cur.type)
         $call @pre_reduce
 
@@ -53,12 +52,12 @@ subcode: parse_frame
                 $call @reduce_eof
             $elif cur.type==T_EOC
                 $call @reduce_eoc
+            $elif cur.type==T_EOS
+                $call @reduce_eos
             $else
                 $call @reduce_postfix
 
-        $if !cur.type
-            goto lexer
-        $elif cur.type==T_EOF
+        $if cur.type==T_EOF
             break
 
         do_shift:
@@ -120,10 +119,11 @@ subcode: _autoload
 
 subcode: setup_parser
     $(setmacro:_op=0x0)
-    # begin of context/statement
+    # begin/end of file/context/statement
     $map op, pre, BOC, BOS
-    # end   of context/file
-    $map op, post, EOC, EOF
+    $map op, post, EOF, EOC, EOS
+    $map op, pre, BOS_HEAD
+    $map op, left, BOS_TEMP
     $call @define_op_precedence
 
     $(block:T_op_names)

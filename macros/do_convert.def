@@ -1,4 +1,4 @@
-# scalar context, sv has to be register here
+# scalar context
 fncode: do_string(sv)
     $(set:T=sv->type==SVt_$1)
     $if !sv || $(T:undef)

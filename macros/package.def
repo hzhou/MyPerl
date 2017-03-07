@@ -26,6 +26,9 @@ subcode:: parse_keyword_other
         $call skip_spaces
         $if isdigit(s[0]) ||  (s[0]=='v' && isdigit(s[1]))
             $call scan_version
+        $elif s $eq "strict"
+            s+=6
+            goto done_use
         $elif isword1st(s[0])
             $call scan_word, 1
             $call @check_use_special, use
@@ -120,7 +123,7 @@ subcode: load_modules
                 cv_module = f_parse_script(ts_file)
             $call run, cv_module
         $else
-            $call die, "can't find module"
+            $call die, "can't find module %s", modules[i]
 
 #----------------------------------------------- 
 subcode:: universal_vars
@@ -144,15 +147,6 @@ fncode: find_module_file(s_module_name)
         $if file_exist($(buf))
             return $(buf)
     return NULL
-
-fncode: file_exist(s_file)
-    $include sys/stat.h
-    $local struct stat _stat
-    tn_ret = stat(s_file, &_stat)
-    $if tn_ret<0
-        return 0
-    $else
-        return 1
 
 #----------------------------------------------- 
 macros:

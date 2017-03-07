@@ -143,9 +143,9 @@ fncode: AV_set(av, i, sv_value)
 
 #----------------------------------------------- 
 subcode: av_each(av)
-    $for i=$(av)->i_0:$(av)->i_n
-        $(set:sv=$(av)->p_array[i])
-        $(set:i=i-$(av)->i_0)
+    $for $(av)->i_0:$(av)->i_n
+        $(set:sv=$(av)->p_array[$(i)])
+        $(set:i=$(i)-$(av)->i_0)
         BLOCK
 
 subcode: av_each_pair(av)

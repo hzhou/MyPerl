@@ -1,27 +1,39 @@
 subcode:: define_ops
     $map define_op, UNARY
 
+subcode:: reduce_prefix_statement
+    switch ($(value:2).n){
+        $call @reduce_prefix_statement_cases
+    }
+    $call error, "reduce_prefix_statement"
+
 subcode:: reduce_prefix
-    $if $(op_t)==T_FN_GOTO
-        $call @reduce_goto_etc
-    $elif $(op_t)==T_FN_LIST || $(op_t)==T_FN_1
-        # print ... ...
-        $call new_op2, op, OP_UNARY, $(op_n), $(term)
-    $elif $(op_t)==T_UNARY
-        # print ( ... )
-        op = $(op_op)
-        $if op->type == OP_Fcall
-            op->right.op = $(term)
-        $else # OP_FN_LIST, OP_FN_1
-            op->type = OP_UNARY
-            # left is already set
-            op->right.op = $(term)
-    $else
-        switch ($(op_t)){
-            $call @reduce_prefix_cases
-            default:
-                $call error, "unsupported prefix"
-        }
+    switch ($(op_t)){
+        case T_FN_GOTO:
+            $call @reduce_goto_etc
+            break
+        case T_FN_LIST:
+        case T_FN_1:
+            # print ... ...
+            op_term=$(term)
+            $if $(op_t)==T_FN_LIST
+                f_flatten_op_list(op_term, OP_LIST, OP_list)
+            $call new_op2, op, OP_UNARY, $(op_n), op_term
+            break
+        case T_UNARY:
+            # print ( ... )
+            op = $(op_op)
+            $if op->type == OP_Fcall
+                op->right.op = $(term)
+            $else # OP_FN_LIST, OP_FN_1
+                op->type = OP_UNARY
+                # left is already set
+                op->right.op = $(term)
+            break
+        $call @reduce_prefix_cases
+        default:
+            $call error, "unsupported prefix"
+    }
     $call done, T_ATOM
 
     subcode: done(T)
@@ -47,7 +59,6 @@ fncode: make_op_FN_LIST(tn_word, op_term)
 # ';' follow EOC should dissolve ';'
 subcode:: reduce_binary
     switch ($(op_t)){
-        $call BIN, Semi, OP_SEQ
         $call BIN, Comma, OP_LIST
         $call BIN, Eq, OP_ASSIGN
         $call @reduce_binary_cases
@@ -71,31 +82,4 @@ subcode:: reduce_binary
             $call @debug_reduce_binary
             op=f_new_op($(type),$(term1),$(term2))
             break
-
-#----------------------------------------------- 
-subcode:: resolve_op_op
-    $case $(T:EOF)
-        $if i_top==1
-            # empty input
-            stack[0].type = T_ATOM
-            break
-        $elif $(T1:Semi)
-            i_top--
-            goto try_reduce
-        $else
-            break
-
-subcode:: resolve_op_op
-    $case $(T:EOC) && $(T1:Semi)
-        # {...;}
-        i_top--
-        goto try_reduce
-        
-subcode:: resolve_op_op
-    $case $(T:EOC) && $(T1:BOC)
-        # (), {}
-        i_top-=1
-        cur.type = T_ATOM
-        cur.value.op = NULL
-        goto do_shift
 

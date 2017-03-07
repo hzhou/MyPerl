@@ -1,0 +1,10 @@
+
+fncode: file_exist(s_file)
+    $include sys/stat.h
+    $local struct stat _stat
+    tn_ret = stat(s_file, &_stat)
+    $if tn_ret<0
+        return 0
+    $else
+        return 1
+

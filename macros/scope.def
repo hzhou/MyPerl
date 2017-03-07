@@ -113,7 +113,7 @@ fncode: f_commit_local_names
         $call empty_str_pool, p_strpool
 
 subcode:: pre_reduce
-    $if cur.type == T_Semi
+    $if cur.type == T_EOS
         f_commit_local_names()
 
 #----------------------------------------------- 

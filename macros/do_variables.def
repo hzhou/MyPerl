@@ -104,17 +104,30 @@ fncode: do_assign(sv_var, sv_val)
     $if sv_var->type==SVt_hv
         $if sv_val->type==SVt_av
             $call copy_hash, sv_var, sv_val
-            return
         $else
             $call die, "Error\n"
-
-    $if sv_var->type==SVt_av
-        $if sv_val->type!=SVt_av
+    $elif sv_var->type==SVt_av
+        $if sv_val->type==SVt_av
+            $call copy_array, sv_var, sv_val
+        $else
             $call die, "Error\n"
-
-    SV_copy(sv_var, sv_val)
+    $elif sv_val->type==SVt_av
+        av = $(sv_av:sv_val)
+        $call sv_set_n, sv_var, av->i_n-av->i_0
+    $else
+        SV_copy(sv_var, sv_val)
 
     # -----------------------------
+    subcode: copy_array(dst, src)
+        av = AV_new()
+        $(dst)->value.p = av
+        av_val = $(sv_av:$(src))
+        &call av_each, av_val
+            sv_temp = get_sv(0)
+            SV_copy(sv_temp, $(sv))
+            AV_push(av, sv_temp)
+            SV_refdec(sv_temp)
+
     subcode: copy_hash(dst, src)
         av = $(sv_av:$(src))
         hv = $(sv_hv:$(dst))
@@ -124,7 +137,9 @@ fncode: do_assign(sv_var, sv_val)
         &call av_each_pair, av
             sv_key = do_string($(sv))
             &call if_sv_string, sv_key
-                HV_set(hv, $(s), $(n), $(sv2))
+                sv = get_sv(0)
+                SV_copy(sv, $(sv2))
+                HV_set(hv, $(s), $(n), sv)
             $else
                 # null
                 $call die, "error"

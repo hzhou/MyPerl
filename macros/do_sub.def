@@ -7,7 +7,7 @@ subcode:: define_ops
 subcode:: parse_keyword_other
     $elif tn_word == WORD_sub
         $call new_op, op, OP_SUB, 0
-        $call set_cur, T_BOS, op
+        $call set_cur, T_BOS_HEAD, op
         goto try_reduce
 
 subcode:: parse_bareword
@@ -17,7 +17,7 @@ subcode:: parse_bareword
         goto lexer
 
 subcode:: set_cv_flags
-    $if $(type:1)==T_BOS && $(value:1).op->type==OP_SUB
+    $if $(type:1)==T_BOS_HEAD && $(value:1).op->type==OP_SUB
         cv_cur->flag = CVf_sub
 
 subcode:: reduce_statement_cv1
@@ -76,6 +76,7 @@ subcode:: eval_op_cases
 #---------------
 subcode:: universal_vars
     $call add_universal, @ARG # @_
+    $call add_universal, @RET # returns
 
 subcode:: match_special_av
     $case s[0]=='_' && !isword(s[1])
@@ -86,7 +87,6 @@ subcode:: match_special_av
 subcode: run_sub
     &call check_file_scope
         &call check_cv_scope
-            $call setup_args, av_arg
             &call set_I_at_ARG, av_arg
                 sv_ret = run_cv(cv, $(CTX))
                 $call ret_svreg, sv_ret
@@ -131,40 +131,37 @@ subcode: run_sub
 
     # ---------------------
     subcode: set_I_at_ARG(av)
-        av_save = g_global[I_at_ARG].value.p
-        g_global[I_at_ARG].value.p = av_arg
+        $(set:av_arg=g_global[I_at_ARG].value.p)
+        av_save = $(av_arg)
+        $call setup_args
         BLOCK
+        $(av_arg) = av_save
 
-        g_global[I_at_ARG].value.p = av_save
+        subcode: setup_args
+            $if !sv_arg
+                $(av_arg) = NULL
+            $elif sv_arg->type==SVt_av
+                SV_copy(&g_global[I_at_ARG], sv_arg)
+                $call ret_svreg, sv_arg
+            $else
+                $(av_arg) = AV_new()
+                AV_push($(av_arg), sv_arg)
+                $call ret_svreg, sv_arg
 
-    subcode: setup_args(av)
-        $if !sv_arg
-            $(av) = NULL
-        $elif sv_arg->type==SVt_av
-            $(av) = $(sv_av:sv_arg)
-            sv_arg->type=0
-            $call ret_svreg_borrow, sv_arg
-        $else
-            $(av) = AV_new()
-            AV_push($(av), sv_arg)
-            $call ret_svreg_borrow, sv_arg
+            g_global[I_at_RET].value.p = NULL
 
     # ---------------------
     subcode: get_returns
-        av_ret = (struct AV*)g_global[I_at_ARG].value.p
-        $if av_ret==av_arg && av_arg
-            AV_free(av_arg)
-            av_ret = NULL
+        AV_free(g_global[I_at_ARG].value.p)
 
+        av_ret = (struct AV*)g_global[I_at_RET].value.p
         $if av_ret
             $if $(IS_LIST)
                 sv_ret = get_svreg(SVt_av)
                 $call sv_set_p, sv_ret, av_ret, _
             $else
                 sv_ret = AV_shift(av_ret)
-                SV_refinc(sv_ret)
-                AV_free(av)
-            # dump_sv(sv_ret, "sub return: ")
+                AV_free(av_ret)
         $else
             sv_ret = NULL
 
@@ -172,20 +169,19 @@ subcode: run_sub
 subcode:: eval_op_cases
     case OP_RETURN:
         # simply clear @_ and put returns there
-        $(set:av_ret=g_global[I_at_ARG].value.p)
-        av_ret = (struct AV*)$(av_ret)
-        $if av_ret
-            AV_free(av_ret)
+        $(set:av_ret=g_global[I_at_RET].value.p)
         sv_ret = eval_op(op->right.op, $(CTX_LIST))
         $if !sv_ret
             $(av_ret)=NULL
         $elif sv_ret->type==SVt_av
             $(av_ret)=$(sv_av:sv_ret)
-            $call ret_svreg_borrow, sv_ret
+            sv_ret->value.p = NULL
+            $call ret_svreg, sv_ret
         $else
             av_ret = AV_new()
             AV_push(av_ret, sv_ret)
             $(av_ret) = av_ret
+            $call ret_svreg, sv_ret
         # set sv_ret to OP_GOTO 
         sv_ret=get_svreg(SVt_undef)
         cv = op->left.cv

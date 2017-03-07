@@ -1,6 +1,6 @@
 subcode:: parse_bareword
     $case s && *s==':'
-        $if $(type:1)==T_BOC || $(type:1)==T_Semi
+        $if $(type:1)==T_BOS
             $if s2+n<s
                 s2[n]=':'
             s++

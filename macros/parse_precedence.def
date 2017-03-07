@@ -1,9 +1,7 @@
 #----------------------------------------------- 
-# defines terminal names such as T_Semi, ...
+# defines terminal names such as T_Comma, ...
 # spcifies precedence
 subcode: define_op_precedence
-    $map op, left, ;
-    $map op, left, T_BOS_TEMP
     $map op, left, or
     $map op, left, and
     $map op, pre, not
@@ -42,8 +40,7 @@ subcode: define_op_precedence
 #---------------------------------------- 
 #  consider: return $n if $n==0; 
 #      we want if to reduce previous and absorb rest
-
 subcode:: pre_shift_other
     $case cur.type==T_BOS_TEMP
-        cur.type = T_BOS
+        cur.type = T_BOS_HEAD
 # 

@@ -6,7 +6,7 @@ subcode:: eval_op_cases
     case OP_UNARY:
         tn_word = op->left.n
         $if tn_word<WORD_FN_LIST
-            sv_right = eval_list(NULL, $(R), $(CTX_LIST))
+            sv_right = eval_list($(R), $(CTX_LIST))
             av = $(sv_av:sv_right)
         $else
             sv_right = eval_op($(R), $(CTX_SCALAR))
@@ -20,6 +20,7 @@ subcode:: eval_op_cases
         $call ret_svreg, sv_right
         return sv_ret
 
+#----------------------------------------------- 
 subcode:: eval_fn_cases
     case WORD_lc:
         &call unary_string_op
@@ -66,6 +67,32 @@ subcode:: eval_fn_cases
             $if $(c)>='a' && $(c)<='z'
                 $(c) &= 0x3f
 
+#----------------------------------------------- 
+macros:
+    KEY_FN_LIST:: join
 
+subcode:: eval_fn_cases
+    case WORD_join:
+        sv_sep = AV_shift(av)
+        sv_ret = get_svreg(SVt_string)
+        tb_flag=0
+        &call av_each, av
+            $if tb_flag
+                SV_append_sv(sv_ret, sv_sep)
+            $else
+                tb_flag=1
+            SV_append_sv(sv_ret, $(sv))
+        $map ret_svreg, sv_sep
+        break
 
+#----------------------------------------------- 
+macros:
+    KEY_FN_1:: int
+
+subcode:: eval_fn_cases
+    case WORD_int:
+        n = do_int(sv_right)
+        sv_ret = get_svreg(SVt_int)
+        sv_ret->value.n=n
+        break
 

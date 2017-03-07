@@ -8,11 +8,27 @@ subcode:: parse_keyword_other
     $(for:w in while, for)
         $elif tn_word == WORD_$(w)
             $call new_op, op, OP_$(w), 0
-            $call set_cur, T_BOS, op
+            $call set_cur, T_BOS_HEAD, op
             CV_begin()
             cv_cur->flag = CVf_loop
             goto try_reduce
 
+#---------------------------
+# we borrow T_BOS_TEMP here as a SEQ binary
+subcode:: reduce_eos_other
+    $elif $(type:2)==T_BOC
+        $call set_cur, T_BOS_TEMP, WORD_for
+        $call shift_cur
+        goto lexer
+
+subcode:: reduce_binary_cases
+    case T_BOS_TEMP:
+        $call new_op2, op, OP_SEQ, $(value:3).op, $(value:1).op
+        $(value:3).op = op
+        i_top-=2
+        goto try_reduce
+
+#---------------------------
 subcode:: reduce_statement_cv2
     $case $(T)==OP_while
         $(set:init=NULL)
@@ -23,7 +39,7 @@ subcode:: reduce_statement_cv2
 subcode:: reduce_statement_cv2
     $case $(T)==OP_for
         $if $(op1)->type==OP_SEQ
-            f_flatten_op_list($(op1), OP_SEQ)
+            f_flatten_op_list($(op1), OP_SEQ, 0)
             $if $(op1)->left.n!=3
                 $call error, "for condition"
             op_init = $(op1)->right.op
@@ -64,4 +80,3 @@ subcode:: reduce_statement_cv2
         $call new_op, op_cv, OP_CV, cv
         $(op) = op_cv
 
-#----------------------------------------------- 

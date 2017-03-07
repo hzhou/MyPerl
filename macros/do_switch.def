@@ -9,19 +9,23 @@ subcode:: define_ops
 subcode:: parse_keyword_other
     $elif tn_word == WORD_if
         # if(...){}  or  ... if cond;
-        $if $(type:1)==T_BOC || $(type:1)==T_Semi
+        $if $(type:1)==T_BOS
             $call new_op, op, OP_IF, 0
-            $call set_cur, T_BOS, op
+            $call set_cur, T_BOS_HEAD, op
             goto try_reduce
         $else
-            $call new_op, op, OP_IF_quick, 0
-            $call set_cur, T_BOS_TEMP, op
+            $call set_cur, T_BOS_TEMP, tn_word
             goto try_reduce
 
 # -- [code] if cond;
-subcode:: reduce_prefix_cases
-    case T_BOS_TEMP:
-
+subcode:: reduce_prefix_statement_cases
+    case WORD_if:
+        $if $(type:4)==T_BOS
+            $call assert, $(type:3)==T_ATOM
+            $call new_op2, op, OP_IF_YES, $(value:1).op, $(value:3).op
+            $(value:3).op = op
+            i_top-=2
+            goto try_reduce
 
 # -- block ----
 subcode:: reduce_statement_cv2
@@ -30,12 +34,11 @@ subcode:: reduce_statement_cv2
             op = $(op)
             op->left.op = $(op1)
             op->right.op = $(op_cv)
-        $else
+        $else # ELIF
             $(T)=OP_IF
             op_tmp = f_new_op(OP_IF,$(op), $(op1))
             op = f_new_op(OP_IF, op_tmp, $(op_cv))
             $(op) = op
-        # $(type:1)=T_BOS
         # ------------------------------
         $if s $eq "else" && !isword(s[4])
             s+=4
@@ -46,7 +49,7 @@ subcode:: reduce_statement_cv2
             op->type = OP_ELIF
             $call cv2_next
         $else
-            f_flatten_op_list(op, OP_IF)
+            f_flatten_op_list(op, OP_IF, OP_IF)
             $call cv2_done
 
 subcode:: reduce_statement_cv1
@@ -54,7 +57,7 @@ subcode:: reduce_statement_cv1
         $(T) = OP_IF
         op = f_new_op(OP_IF, $(op), $(op_cv))
         $(op) = op
-        f_flatten_op_list(op, OP_IF)
+        f_flatten_op_list(op, OP_IF, OP_IF)
         $call cv1_done
 
 #----------------------------------------------- 

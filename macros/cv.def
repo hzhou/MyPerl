@@ -37,8 +37,7 @@ fncode: CV_begin
 
 fncode: CV_close(op_block)
     $if op_block->type == OP_SEQ
-        f_flatten_op_list(op_block, OP_SEQ)
-        op_block->type=OP_block
+        f_flatten_op_list(op_block, OP_SEQ, OP_block)
 
     cv_cur->op_block = op_block
     $call cv_cur_wrap
@@ -65,26 +64,26 @@ subcode:: define_parse_terms
     $map op, pre, Stmt2
 
 subcode: reduce_cv
-    cv = CV_close($(block))
-    $call set_atom, OP_CV, cv
-    i_top-=2
+    cv = CV_close($(value:1).op)
+    i_top-=2 # { [OP]
 
-    # need decide whether to append T_Semi
+    # need decide whether to append T_BOS
     $call skip_spaces
 
+    $call set_atom, OP_CV, cv
     $(set:op_cv=cur.value.op)
-    $if $(type:1)==$1 :||: T_Semi, T_BOC
+    $if $(type:1)==T_BOS
         # bare block
         $call shift_cur
-        $call set_cur, T_Semi, 0
+        $call set_cur, T_EOS, 0
         goto try_reduce
-    $elif $(type:1)==T_BOS
+    $elif $(type:1)==T_BOS_HEAD
         # e.g. do {...}
         $(set:op=$(value:1).op)
         $(set:T=$(op)->type)
         $call @reduce_statement_cv1
         $call error, "cv1"
-    $elif $(type:2)==T_BOS
+    $elif $(type:2)==T_BOS_HEAD
         # e.g if(cond) {...}
         $(set:op=$(value:2).op)
         $(set:op1=$(value:1).op)
@@ -95,7 +94,7 @@ subcode: reduce_cv
 
     subcode: cv1_done
         $(type:1)=T_ATOM
-        $call set_cur, T_Semi, 0
+        $call set_cur, T_EOS, 0
         goto try_reduce
 
     subcode: cv2_next

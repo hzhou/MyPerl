@@ -81,12 +81,14 @@ subcode: sv_set_p(sv, p, type)
     $(sv)->value.p=(void*)$(p)
 
 #---- Ref Counting -------------------------- 
+# refcnt refers to the SV variable itself, not its content
+#     its content is managed by copy_on_write
 fncode: SV_refinc(sv)
     sv->refcnt++
 
 fncode: SV_refdec(sv)
     # $print "SV_refdec %p - %d", sv, sv->refcnt
-    $if sv->refcnt>0
+    $if sv && sv->refcnt>0
         sv->refcnt--
         $if sv->refcnt==0
             $call @sv_decopy
@@ -102,6 +104,8 @@ fncode: SV_refdec(sv)
                     HV_free((struct HV*)$(p))
                 $call @sv_ref_release_cases
                 sv->value.p = NULL
+            sv_release:
+            $call @sv_release
     return
 
 fncode: SV_undef(sv)

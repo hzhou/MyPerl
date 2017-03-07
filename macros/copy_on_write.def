@@ -50,10 +50,17 @@ subcode: sv_on_write(sv)
 subcode: sv_decopy
     $(set:msg=sv_decopy)
     &call ret_copy, sv
-        return
+        goto sv_release
 
 # -------------------------
 fncode: SV_copy(sv_ret, sv)
+    $if !sv
+        $if !sv_ret
+            return NULL
+        $else
+            sv_ret->type=SVt_undef
+            sv_ret->value.p = NULL
+            return sv_ret
     $if !sv_ret
         sv_ret = get_svreg(sv->type)
     $else

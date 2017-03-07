@@ -32,16 +32,26 @@ include: macros/do_join.def
 include: macros/do_stdio.def
 include: macros/do_regex.def
 
+include: macros/do_file_test.def
+
 include: macros/parse_extra.def
 include: macros/debug.def
 
 page: myperl, basic_frame
+    $call parse_cmdline
     $call @perl_init # sets up globals
-    $(if:1)
-        $(set:f=tests/t.pl)
-        run_script("$(f)")
-    $(else)
+    $if s_script_file
+        run_script(s_script_file)
+    $else
         run_repl()
+
+    subcode: parse_cmdline
+        $local s_script_file=NULL
+        $if argc==2
+            $if file_exist(argv[1])
+                s_script_file = argv[1]
+        $elif argc>2
+            $call die, "Usage: myperl [perl_script]"
 
 #---------------------------------------- 
 fncode: run_script(s_file)
@@ -59,6 +69,7 @@ subcode: _autoload
     $global struct TOK parse_stack[$(MAX_TOK_STACK)], i_stack_top
 
 fncode: f_parse_script(s_file)
+    $return_type struct CV *
     &call open_r, s_file
         CV_begin()
         i_stack_top = perl_parse(NULL, file_in, parse_stack, 0)
@@ -68,5 +79,7 @@ fncode: f_parse_script(s_file)
             $call assert, lex_stack_len==0
             return cv
         $else
-            $call die, "f_parse_script failed."
+            $call debug_parse_stack
+            $call die, "f_parse_script failed ($i_stack_top)."
+    return NULL
 

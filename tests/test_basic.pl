@@ -1,4 +1,3 @@
-#!/usr/bin/perl
 print 'Hello World, once!'; print "\n";
 print "Hello World, ", "twice!\n";
 # -- printf --

@@ -28,12 +28,19 @@ fncode: eval_op
         case OP_SEQ:
             eval_op($(L), 0, tn_level)
             return eval_op($(R), 0, tn_level)
+        case OP_LIST:
+            f_flatten_op_list(op, OP_LIST, OP_list)
+        case OP_list:
+            $if $(IS_SCALAR)
+                # (...,list) always means list
+                return eval_list(op, $(CTX_LIST))
+            $else
+                return eval_list(op, $(CTX))
         case OP_CV:
             return run_cv(op->right.cv, $(CTX))
         case OP_CONST:
             return SV_copy(NULL, op->right.sv)
-        case OP_LIST:
-            return eval_list($(L), $(R), $(CTX))
+            # return op->right.sv
         $call @eval_op_cases
         default:
             $call @eval_op_group
@@ -42,17 +49,45 @@ fncode: eval_op
     $call die, "unsupported op: %s", get_OP_name(op->type)
     return NULL
 
+#----------------------------------------------- 
+subcode:: define_ops
+    $map define_op, list
+
 fncode: eval_list
+    $parameter op, $(PARAM_CTX)
+    $call get_av_reg, sv, av
+    $if !op
+        return sv
+
+    $if op->type==OP_list
+        n=op->left.n
+    $else
+        n=1
+
+    op_list = op->right.op
+    # $print "eval_list: $n items"
+    $for i=0:n
+        sv_item = eval_op(&op_list[i], $(CTX))
+        $call av_push, av, sv_item
+        $call ret_svreg, sv_item
+    return sv
+
+
+fncode: eval_list_old
     $parameter op_a, op_b, $(PARAM_CTX)
     # $print "eval_list %p, %p", op_a, op_b
-    sv_b = eval_op(op_b, $(CTX_LIST))
+    $if $(IS_LEFT)
+        NOOP
+    $else
+        tn_context = 2
+    sv_b = eval_op(op_b, $(CTX))
     $if !op_a
         $if sv_b->type == SVt_av
             return sv_b
         $else
             $call get_av_reg, sv, av
     $else
-        sv_a = eval_op(op_a, $(CTX_LIST))
+        sv_a = eval_op(op_a, $(CTX))
         $if $(sv_is_reg:sv_a) && sv_a->type==SVt_av
             sv = sv_a
             av = $(sv_av:sv)
@@ -66,12 +101,12 @@ fncode: eval_list
     $call ret_svreg, sv_b
     return sv
 
-    subcode: av_push(av_list, sv_item)
-        $if $(sv_item) && $(sv_item)->type==SVt_av
-            av_item = $(sv_av:$(sv_item))
-            $call assert, av_item!=av
-            &call av_each, av_item
-                AV_push($(av_list), $(sv))
-        $else
-            AV_push($(av_list), $(sv_item))
+subcode: av_push(av_list, sv_item)
+    $if $(sv_item) && $(sv_item)->type==SVt_av
+        av_item = $(sv_av:$(sv_item))
+        $call assert, av_item!=av
+        &call av_each, av_item
+            AV_push($(av_list), $(sv))
+    $else
+        AV_push($(av_list), $(sv_item))
 

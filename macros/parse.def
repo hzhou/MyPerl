@@ -34,7 +34,10 @@ fncode: perl_parse(s_in, file_in, struct TOK* stack, i_top)
             $(set:op_n=stack[i_top-2].value.n)
             $(set:op_op=stack[i_top-2].value.op)
             $(set:term=stack[i_top-1].value.op)
-            $call @reduce_prefix
+            $if $(op_t)==T_BOS_HEAD
+                $call @reduce_prefix_statement
+            $else
+                $call @reduce_prefix
         $else
             $(set:op_v=stack[i_top-2].value.n)
             $(set:term1=stack[i_top-3].value.op)
@@ -46,32 +49,59 @@ fncode: perl_parse(s_in, file_in, struct TOK* stack, i_top)
             $case $(op_t)==T_$(T)
                 BLOCK
 
-    subcode: reduce_eoc
-        $(set:op_eoc=cur.value.n)
-        $(set:op_boc=stack[i_top-2].value.n)
-        $(set:block=stack[i_top-1].value.op)
-        $call @debug_reduce_eoc
-        $if $(op_eoc)==0
-            $call reduce_eof
-        $else
-            $call @check_eoc_match, $(op_boc), $(op_eoc)
-            $if $(op_eoc)=~[}\]]
-                $call @check_reduce_var_index
-            $if $(op_eoc)=='}'
-                $call reduce_cv
-            $call copy_stack, i_top-2, i_top-1
-            i_top-=1
-            goto lexer
-
     subcode: reduce_eof
-        $if i_top==2
+        $if i_top==2 && $(type:2)==T_BOS
             $call copy_stack, 0, 1
             return 1
         $else
             return i_top
 
+    subcode: reduce_eoc
+        $(set:op_eoc=cur.value.n)
+        $(set:op_boc=stack[i_top-2].value.n)
+        $(set:block=stack[i_top-1].value.op)
+        $if $(type:2)==T_BOS && $(op_eoc)=='}'
+            # { single statement }
+            $call copy_stack, i_top-2, i_top-1
+            $(type:1)=T_BOS
+            goto try_reduce
+
+        $call @debug_reduce_eoc
+        # note: code block been reduced, ref: parse_resolve.def -- resolve_op_op : {[code] T_BOS }
+        $call @check_eoc_match, $(op_boc), $(op_eoc)
+        $call @reduce_eoc_special
+        $call copy_stack, i_top-2, i_top-1
+        i_top-=1
+        goto lexer
+
+    subcode: reduce_eos
+        # semicolons
+        $if $(type:2)==T_BOS
+            $call assert, $(type:1)==T_ATOM
+            $if i_top==2 || $(type:3)==T_BOC
+                # 1st statement
+                $call copy_stack, i_top-2, i_top-1
+            $else
+                # accumulate statement
+                $call new_op2, op, OP_SEQ, $(value:3).op, $(value:1).op
+                $(value:3).op = op
+                i_top-=1
+            # BOS for the next statement
+            $(type:1)=T_BOS
+            $(value:1).n = 0
+            goto lexer
+        $elif $(type:1)==T_BOS
+            # extra ; empty statement
+            goto lexer
+        $call @reduce_eos_other # for (init;cond;cont)
+        $else
+            $call error, "reduce_eos"
+
+
+
+    # --------------------
     subcode: reduce_postfix
-        $call error, "Don't know reduce_postfix"
+        $call error, "Don't know how to reduce_postfix"
 
     # ------------------------
     # -- during match
@@ -92,8 +122,7 @@ fncode: perl_parse(s_in, file_in, struct TOK* stack, i_top)
 #----------------------------------------------- 
 subcode: match
     # ref: parse_number/string/var/word
-    $call @parse_match_cases
-    $elif *s=~[({\[]
+    $if *s=~[({\[]
         $call set_cur, T_BOC, *s
         s++
         goto do_shift
@@ -101,6 +130,11 @@ subcode: match
         $call set_cur, T_EOC, *s
         s++
         goto try_reduce
+    $elif *s==';'
+        $call set_cur, T_EOS, *s
+        s++
+        goto try_reduce
+    $call @parse_match_cases
     $else
         tn_op=0
         # $print "f_scan_operator [%c]", s[0]
@@ -120,6 +154,10 @@ subcode:: pre_shift_other
         $if tb_cv
             CV_begin()
             $call @set_cv_flags
+            stack[i_top++]=cur
+            $call set_cur, T_BOS, 0
+            stack[i_top++]=cur
+            goto lexer
 
 #----------------------------------------------- 
 subcode: check_eoc_match(b,e)
@@ -130,8 +168,3 @@ subcode: check_eoc_match(b,e)
         # ok
     $else
         $call error, "Parentheses mismatch!"
-
-    subcode: mismatch(open, close)
-        $case $(b)=='$(open)'
-            $if $(e)!='$(close)'
-                $call 

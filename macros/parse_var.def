@@ -120,33 +120,41 @@ subcode: if_atom_var(i)
         $if tn_type==$1 :||: OP_SIGIL,OP_LOCAL,OP_GLOBAL
             BLOCK
 
-subcode: check_reduce_var_index
-    &call if_atom_var, 3
-        tn_type=0
-        $if $(op_eoc)==']'
-            tn_type=OP_ARRAY_INDEX
-        $elif $(op_eoc)=='}'
-            tn_type=OP_HASH_INDEX
-        char_index = $(op_eoc)
-        op_index = $(value:1).op
-        i_top-=2
-        $while $(type:2)==T_SIGIL
-            char_sigil = $(value:2).n
-            $if char_sigil!='$'
-                $call error, "var index is scalar (use $)!"
-            $if tn_type==OP_ARRAY_INDEX
-                char_sigil='@'
-            $elif tn_type==OP_HASH_INDEX
-                char_sigil='%'
-            $call new_op2, op_v, OP_SIGIL, char_sigil, $(value:1).op
-            $(type:2)=T_ATOM
-            $(value:2).op=op_v
-            i_top-=1
-        op_v = f_new_op(tn_type,$(value:1).op,op_index)
-        $(value:1).op=op_v
-        cur.type=0
-        break
+subcode:: reduce_eoc_special
+    $if $(op_eoc)=~[}\]]
+        &call if_atom_var, 3
+            tn_type=0
+            $if $(op_eoc)==']'
+                tn_type=OP_ARRAY_INDEX
+            $elif $(op_eoc)=='}'
+                tn_type=OP_HASH_INDEX
+            char_index = $(op_eoc)
+            op_index = $(value:1).op
+            i_top-=2
+            $while $(type:2)==T_SIGIL
+                char_sigil = $(value:2).n
+                $if char_sigil!='$'
+                    $call error, "var index is scalar (use $)!"
+                $if tn_type==OP_ARRAY_INDEX
+                    char_sigil='@'
+                $elif tn_type==OP_HASH_INDEX
+                    char_sigil='%'
+                $call new_op2, op_v, OP_SIGIL, char_sigil, $(value:1).op
+                $(type:2)=T_ATOM
+                $(value:2).op=op_v
+                i_top-=1
+            op_v = f_new_op(tn_type,$(value:1).op,op_index)
+            $(value:1).op=op_v
+            goto lexer
 
+subcode:: reduce_eoc_special
+    $(set:bos=$(type:3)==T_BOS || $(type:3)==T_MY)
+    $if ($(bos)) && $(op_eoc)==')' && $(block)->type!=OP_LIST
+        $call new_op2, op, OP_list, 1, $(block)
+        i_top-=1
+        $(type:1)=T_ATOM
+        $(value:1).op = op
+        goto lexer
 #----------------------------------------------- 
 # this is for var inside string interpolation
 #    so limited to static resolvable ones.

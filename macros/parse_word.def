@@ -32,7 +32,7 @@ subcode:: parse_match_cases
     subcode: gather_word_info
         tn_bos_op=0
         tn_unary_word=0
-        $if $(type:1)==T_BOS
+        $if $(type:1)==T_BOS_HEAD
             tn_bos_op = $(value:1).op->type
         $elif $(type:1)==* :||: T_FN_LIST, T_FN_1
             tn_unary_word = $(value:1).n

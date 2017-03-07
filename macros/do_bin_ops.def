@@ -60,7 +60,9 @@ macros:
 
 subcode:: eval_op_group
     $if $(op_is_bin)
+        # $print eval bin L
         sv_a = eval_op($(L), $(CTX_SCALAR))
+        # $print eval bin R
         sv_b = eval_op($(R), $(CTX_SCALAR))
         sv=NULL
         $if $(op_is_rel)
@@ -115,13 +117,13 @@ subcode: do_bin_string
                 s+=n_a
 
     subcode: take_sv_a_string
-        $call assert, $(sv_is_reg:sv_a)
-        $if sv_a->type==SVt_string
+        $if $(sv_is_reg:sv_a) && sv_a->type==SVt_string
             sv=sv_a
             sv_a=NULL
+            SV_string_on_write(sv)
         $else
-            sv = do_string(sv_a)
-        SV_string_on_write(sv)
+            sv = get_svreg(SVt_string)
+            SV_append_sv(sv, sv_a)
 
 subcode: do_opeq_string
     SV_to_string(sv_a)
@@ -133,33 +135,33 @@ subcode: do_opeq_string
         $elif $(opT:x=)
             n = do_int(sv_b)
             &call with_sv_string, sv_a
-                n1 = $(n)
-                n2 = n1 * n
-                SV_resize(sv_a, n2)
+                n_1 = $(n)
+                n_2 = n_1 * n
+                SV_resize(sv_a, n_2)
                 $for i=1:n
-                    memcpy($(s)+n1*i, $(s), n1)
-                $(n) = n2
+                    memcpy($(s)+n_1*i, $(s), n_1)
+                $(n) = n_2
 
 #-----------------
 subcode: do_bin_num
     $(set:f=$1->type==SVt_float)
     $if $(f:sv_a)||$(f:sv_b)||$(opT:$(sym:/))||$(opT:$(sym:**))
-        f1 = do_float(sv_a)
-        f2 = do_float(sv_b)
+        f_1 = do_float(sv_a)
+        f_2 = do_float(sv_b)
         $(for:o in +,-,*,/)
             $case $(opT:$(sym:$(o)))
-                f1 $(o)= f2
+                f_1 $(o)= f_2
         $(if:!is_opeq)
             $elif $(opT:$(sym:**))
-                f1 = pow(f1, f2)
+                f_1 = pow(f_1, f_2)
         $call _sv_set, f
     # int 
     $if 1
-        n1 = do_int(sv_a)
-        n2 = do_int(sv_b)
+        n_1 = do_int(sv_a)
+        n_2 = do_int(sv_b)
         $(for:o in +,-,*,/,%,$(bit_ops_sym))
             $case $(opT:$(sym:$(o)))
-                n1 $(o)= n2
+                n_1 $(o)= n_2
         $call _sv_set, n
 
     subcode: _sv_set(f)
@@ -168,10 +170,10 @@ subcode: do_bin_num
                 SV_to_float(sv_a)
             $(else)
                 SV_to_int(sv_a)
-            $call sv_set_$(f), sv_a, $(f)1
+            $call sv_set_$(f), sv_a, $(f)_1
         $(else)
             sv = get_svreg(SVt_undef)
-            $call sv_set_$(f), sv, $(f)1
+            $call sv_set_$(f), sv, $(f)_1
             goto done_bin
         
 subcode: do_opeq_num
@@ -184,17 +186,17 @@ subcode: do_opeq_num
 subcode: do_rel_num
     $(set:f=$1->type==SVt_float)
     $if $(f:sv_a) || $(f:sv_b)
-        f1 = do_float(sv_a)
-        f2 = do_float(sv_b)
+        f_1 = do_float(sv_a)
+        f_2 = do_float(sv_b)
         $call switch_op, f
     $else
-        n1 = do_int(sv_a)
-        n2 = do_int(sv_b)
+        n_1 = do_int(sv_a)
+        n_2 = do_int(sv_b)
         $call switch_op, n
 
     subcode: switch_op(f)
-        $(set:a=$(f)1)
-        $(set:b=$(f)2)
+        $(set:a=$(f)_1)
+        $(set:b=$(f)_2)
         switch(op->type){
             $map bool_case, ==,!=,<,>,<=,>=
             case OP_$(sym:<=>):

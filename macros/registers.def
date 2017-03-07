@@ -1,6 +1,7 @@
 #----- registers -----------------
 macros:
     N_REGS: 100
+    DEBUG_registers: 0
 
 subcode: _autoload
     $global struct SV svregs[$(N_REGS)], i_svreg=0, n_svreg=0
@@ -19,6 +20,8 @@ fncode: get_svreg(tn_type)
     sv= &svregs[i_svreg]
     $call _init
     n_svreg++
+    $(if:debug_registers)
+        $print "get_svreg $i_svreg/$n_svreg"
     return sv
 
     subcode: inc_i_svreg
@@ -29,18 +32,22 @@ fncode: get_svreg(tn_type)
         $call sv_init, sv, tn_type
 
 subcode: ret_svreg(sv)
-    $if $(sv) && $(sv_is_reg:$(sv))
-        # releases its content
-        SV_refdec($(sv))
-        $(sv)->flag = 0
-        n_svreg--
+    SV_refdec($(sv))
 
 subcode: ret_svreg_borrow(sv)
     # when its content (av or string) been taken
     $if $(sv) && $(sv_is_reg:$(sv))
         $(sv)->flag = 0
         n_svreg--
+#----------------------------------------------- 
+subcode:: sv_release
+    $case $(sv_is_reg:sv)
+        sv->flag = 0
+        n_svreg--
+        $(if:debug_registers)
+            $print "  ret_svreg %d/$n_svreg", (int)(sv-svregs)
 
+#----------------------------------------------- 
 #- convenience
 subcode: get_string_reg(sv)
     $(sv) = get_svreg(SVt_string)

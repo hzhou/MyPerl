@@ -133,7 +133,8 @@ fncode: f_parse_str_qq(s, is_regex)
             $if char_sigil=='@'
                 $call new_op2, op_sep, OP_GLOBAL, '$', I_LIST_SEPARATOR 
                 $call new_op2, op_list, OP_LIST, op_sep, op_var
-                $call new_op, op_var, OP_join, op_list
+                f_flatten_op_list(op_list, OP_LIST, OP_list)
+                $call new_op2, op_var, OP_UNARY, WORD_join, op_list
 
     # ---- esc: \n,\t,\xhh,\0dd,\x{code},\l,\u,\Q,\E,...
     subcode: simple_esc(n)

@@ -1,13 +1,20 @@
 subcode: error(@msg)
     $print $(msg)
-    $(if:in_perl_parse)
-        dump_parse_stack(stack, i_top, cur, s)
+    $call debug_parse_stack
     exit(0)
 
 subcode: assert(@cond)
     $if !($(cond))
         $print assert error: ! ($(cond))
         exit(0)
+
+#----------------------------------------------- 
+subcode: debug_parse_stack
+    $(if:in_perl_parse)
+        dump_parse_stack(stack, i_top, cur, s)
+    $(else)
+        $my struct TOK cur={0,0}
+        dump_parse_stack(parse_stack, i_stack_top, cur, NULL)
 
 fncode: dump_parse_stack(struct TOK* stack, i_top, struct TOK cur, s)
     $print "  stack: -"

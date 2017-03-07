@@ -1,13 +1,37 @@
 page: test_recurse
-    $(if:1)
-        $call test_binary
+    $(if:0)
+        $(for:1,2,3,4,37)
+            print "$1: ", binary($1), "\n"
+    $(elif:0)
+        $(for:1,4,8)
+            print "$1! = ", factorial($1), "\n"
+    $(elif:0)
+        hanoi(3, 'A', 'C', 'B')
+    $(elif:1)
+        $(for:10,27)
+            print "fib($1) = ", fib($1), "\n"
 
-subcode: test_binary
-    $(for:1,2,3,4,37)
-        print "$1: ", binary($1), "\n"
 
-    $sub binary($n)
-        return $n if $n==0 || $n==1
-        my $k= int($n/2)
-        my $b = $n%2
-        return binary($k).$b
+fncode: binary($n)
+    return $n if $n==0 || $n==1
+    my $k= int($n/2)
+    my $b = $n%2
+    return binary($k).$b
+
+fncode: factorial($n)
+    return 1 if $n==0
+    return factorial($n-1)*$n
+
+fncode: hanoi($n, $start, $end, $extra)
+    $if $n==1
+        $print Move disk #1 from $start to $end.
+    $else
+        hanoi($n-1, $start, $extra, $end)
+        $print Move disk #$n from $start to $end.
+        hanoi($n-1, $extra, $end, $start)
+
+fncode: fib($n)
+    $if $n<2
+        return 1
+    $else
+        return fib($n-1)+fib($n-2)

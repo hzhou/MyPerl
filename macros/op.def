@@ -61,11 +61,12 @@ fncode: f_new_op(tn_type, op_a, op_b)
     return op
 
 #----------------------------------------------- 
-fncode: f_flatten_op_list(op, tn_type)
+fncode: f_flatten_op_list(op, tn_type, tn_new_type)
     n = f_op_iter_count(op, tn_type)
     op_list = get_op_list(n)
     # $print "flatten %p-%p %s, $tn_count items", op, op_list,  get_OP_name(tn_type)
     f_op_iter_get(op, tn_type, op_list)
+    op->type = tn_new_type
     op->left.n = n
     op->right.op = op_list
 
@@ -81,9 +82,9 @@ fncode: f_op_iter_count(op, tn_type)
     $if op->type != tn_type
         return 1
     $else
-        n1 = f_op_iter_count(op->left.op,tn_type)
-        n2 = f_op_iter_count(op->right.op,tn_type)
-        return n1+n2
+        n_1 = f_op_iter_count(op->left.op,tn_type)
+        n_2 = f_op_iter_count(op->right.op,tn_type)
+        return n_1+n_2
 
 fncode: f_op_iter_get(op, tn_type, op_list)
     $return_type struct OP*

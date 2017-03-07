@@ -1,3 +1,32 @@
+#----------------------------------------------- 
+subcode:: resolve_op_op
+    $case $(T:EOF)
+        $if $(T1:BOS)
+            i_top--
+
+        $if i_top==0
+            # empty input
+            stack[0].type = T_ATOM
+            return 1
+        $else
+            return i_top
+
+subcode:: resolve_op_op
+    $case $(T:EOC) 
+        $if $(T1:BOS) && cur.value.n=='}'
+            # { [OP] ; }
+            $if $(type:3)!=T_BOC
+                $call error, "EOC BLOCK resolve"
+            $call assert, $(type:3)==T_BOC
+            i_top--
+            $call reduce_cv
+        $elif $(T1:BOC)
+            # (), {}
+            i_top-=1
+            cur.type = T_ATOM
+            cur.value.op = NULL
+            goto do_shift
+
 #---- ++/-- ------------------------------------ 
 subcode:: define_ops
     $map define_op, INC, DEC
