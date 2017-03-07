@@ -1,55 +1,16 @@
-#---- heap ------------------------------------ 
-subcode: _autoload
-    # (a1, a2, a3): type, n, p
-    $global darray heap: int, int, void*
-    $define(HEAP_op) 1
-    $define(HEAP_sv) 2
-
-macros:
-    opBATCH: 100
-    svBATCH: 100
-
-subcode: _autoload
-    $global op_freelist=NULL, i_op_free, n_op_free
-    $global sv_freelist=NULL, i_sv_free, n_sv_free
-
-subcode: heap_alloc(op, n)
-    # always zero initialized
-    $allocate($(n), 0) $(op)_freelist
-    heap.$push HEAP_$(op), $(n), $(op)_freelist
-    i_$(op)_free = 0
-    n_$(op)_free = $(n)
-
-#----------------------------------------------- 
 fncode: get_op
-    $return_type struct OP*
-    $if i_op_free>=n_op_free
-        $call heap_alloc, op, $(opBATCH)
-    return &op_freelist[i_op_free++]
+    $(set:op_size=sizeof(struct OP))
+    return (struct OP*) calloc(1,$(op_size))
 
 fncode: get_op_list(n)
-    $return_type struct OP*
-    $if i_op_free+n > n_op_free
-        $if n>$(opBATCH)
-            $call heap_alloc, op, n
-        $else
-            $call heap_alloc, op, $(opBATCH)
-        i_op_free=n
-        return op_freelist
-    $else
-        i_op_free+=n
-        return op_freelist+i_op_free-n
+    $(set:op_size=sizeof(struct OP))
+    return (struct OP*) calloc(n,$(op_size))
 
-#----------------------------------------------- 
-#-- sv for OP_CONST, AV/HV elements
+
 fncode: get_sv(tn_type)
-    $return_type struct SV*
-    $if i_sv_free>=n_sv_free
-        $call heap_alloc, sv, $(svBATCH)
-    sv = &sv_freelist[i_sv_free++]
-    sv->type = tn_type
-    # when refcnt ->0, we'll garbage collect it.
-    sv->refcnt = 1
+    sv = (struct SV*) calloc(1,$(sv_size))
+    sv->type=tn_type
+    sv->refcnt=1
+    sv->flag=SVf_heap
     return sv
-
 

@@ -25,13 +25,7 @@ subcode: _autoload
     $enum $(types)
     $global char* SV_names[]={$(join:"*":,:$(types))}
 
-    #- const: e.g. part of OP code (literal const)
-    #- register: get_svreg(), holds intermediate
-    #- varable: our or my, require persistency
-    $define(SVf_const) 0
-    $define(SVf_register) 1
-    $define(SVf_var) 2
-
+    $enum SVf_const, SVf_register, SVf_heap
 /*
 subcode: _autoload
     $struct(INTEGER) uint64_t* p, char sign, short n, size
@@ -46,9 +40,9 @@ fncode: get_SV_name(n_type)
 
 macros: 
     sv_size: sizeof(struct SV)
-    sv_is_reg: ($1->flag&3)==SVf_register
-    sv_is_const: ($1->flag&3)==SVf_const
-    sv_is_var: ($1->flag&3)==SVf_var
+    sv_is_reg: ($1->flag)==SVf_register
+    sv_is_const: ($1->flag)==SVf_const
+    sv_is_heap: ($1->flag)==SVf_var
     
 #----------------------------------------------- 
 subcode: sv_set_type(sv, sigil)
