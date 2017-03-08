@@ -32,7 +32,7 @@ fncode: HV_set(hv, s_key, int len, sv_value)
     $(set:HV=hv, (unsigned char*)s_key, len)
     k = f_strhash_lookup_left($(HV))
     hv->p_val[k]=sv_value
-    # SV_ref_inc(sv_value)
+    SV_refinc(sv_value)
 
 fncode: HV_get(hv, s_key, int len)
     $return_type struct SV*

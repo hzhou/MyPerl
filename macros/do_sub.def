@@ -72,8 +72,9 @@ subcode:: eval_op_cases
         i_sub=op->left.n
         cv = subs[i_sub]
         sv_arg = eval_op(op->right.op, $(CTX_LIST))
-        $call run_sub
-        return NULL
+        sv_ret = f_run_sub(cv, sv_arg, $(CTX))
+        $call ret_svreg, sv_arg
+        return sv_ret
 
 #---------------
 subcode:: universal_vars
@@ -86,7 +87,8 @@ subcode:: match_special_av
         $call new_op2, op, OP_GLOBAL, '@', I_at_ARG
 
 #---------------
-subcode: run_sub
+fncode: f_run_sub
+    $parameter cv, sv_arg, $(PARAM_CTX)
     &call check_file_scope
         &call check_cv_scope
             &call set_I_at_ARG, av_arg
@@ -119,26 +121,27 @@ subcode: run_sub
 
     # ---------------------
     subcode: set_I_at_ARG(av)
-        $(set:av_arg=g_global[I_at_ARG].value.p)
-        av_save = $(av_arg)
-        $call setup_args
-        BLOCK
-        $if $(av_arg)
-            AV_free($(av_arg))
-        $(av_arg) = av_save
+        $my struct AV save_arg
+        sv = &(g_global[I_at_ARG])
+        av_arg= $(sv_av:sv)
+        memcpy(&save_arg, av_arg, sizeof(struct AV))
+        &call setup_args
+            BLOCK
+        memcpy(av_arg, &save_arg, sizeof(struct AV))
+
 
         subcode: setup_args
             $if !sv_arg
-                $(av_arg) = NULL
+                $call sv_init, sv, _
+                sv->copy= 0
             $elif sv_arg->type==SVt_av
-                SV_copy(&g_global[I_at_ARG], sv_arg)
-                $call ret_svreg, sv_arg
+                memcpy(av_arg, $(sv_av:sv_arg), sizeof(struct AV))
             $else
-                $(av_arg) = AV_new()
-                sv = get_sv(0)
-                sv = SV_copy(sv, sv_arg)
-                AV_push($(av_arg), sv)
-                $call ret_svreg, sv_arg
+                $call get_svav_quick, sv, 1
+                AV_push(av_arg, sv_arg)
+            BLOCK
+            $if sv_arg && sv_arg->type!=SVt_av
+                $call ret_svav_quick, sv, 1
 
 #----------------------------------------------- 
 subcode: _autoload

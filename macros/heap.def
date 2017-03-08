@@ -17,3 +17,4 @@ fncode: get_sv(tn_type)
 subcode:: sv_release
     $case $(sv_is_heap:sv)
         free(sv)
+

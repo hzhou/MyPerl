@@ -167,6 +167,7 @@ subcode: do_opeq_num
 #-- relation op, return sv_TRUE/sv_FALSE
 subcode: do_rel_num
     $(set:f=$1->type==SVt_float)
+    tn_bool=0
     $if $(f:sv_a) || $(f:sv_b)
         f_1 = do_float(sv_a)
         f_2 = do_float(sv_b)
@@ -175,6 +176,7 @@ subcode: do_rel_num
         n_1 = do_int(sv_a)
         n_2 = do_int(sv_b)
         $call switch_op, n
+    $call sv_set_n, sv_a, tn_bool
 
     subcode: switch_op(f)
         $(set:a=$(f)_1)
@@ -184,16 +186,17 @@ subcode: do_rel_num
             case OP_$(sym:<=>):
                 sv = get_svreg(SVt_undef)
                 $if $(a)==$(b)
-                    $call sv_set_n, sv, 0
+                    tn_bool = 0
                 $elif $(a)<$(b)
-                    $call sv_set_n, sv, -1
+                    tn_bool = -1
                 $else
-                    $call sv_set_n, sv, 1
+                    tn_bool = 1
         }
-    subcode: bool_case(o)
-        case OP_$(sym:$(o)):
-            sv = $(a)$(o)$(b)?sv_TRUE:sv_FALSE
-            break
+        # ----
+        subcode: bool_case(o)
+            case OP_$(sym:$(o)):
+                tn_bool = $(a)$(o)$(b)?1:0
+                break
 
 subcode: do_rel_string
     sv_a = do_string(sv_a)

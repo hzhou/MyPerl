@@ -71,7 +71,9 @@ subcode: run(cv)
     $(set:da=$1,$1_len,$1_size)
     $(da:g_local) = g_file_scopes[cur_file_scope]
     $call @debug_file_scope
-    run_cv($(cv), 0, 0)
+    sv_ret = run_cv($(cv), 0, 0)
+    BLOCK
+    $call ret_svreg, sv_ret
 
 #---- each scope creates new stash_local 
 #-      the created cv also holds i_file (g_file[i_file])

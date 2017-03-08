@@ -46,9 +46,8 @@ subcode:: universal_vars
         stash_global.$set "$(name)", $(n), $(i_var)
 
         $(if:sigil=@)
-            av = AV_new()
             sv->type=SVt_av
-            sv->value.p=av
+            av = $(sv_av:sv)
         $(elif:sigil=%)
             hv = HV_new()
             sv->type=SVt_hv

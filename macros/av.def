@@ -1,26 +1,81 @@
-subcode: _autoload
-    $struct(AV) struct SV* * p_array, i_0, i_n, size
+subcode:: sv_prerequisite
+    $struct(AV) struct SV** p_array, i_0, i_n, size
     $register_prefix(av) struct AV *
 
+macros: 
+    SV_UNION:: struct AV A
+    SV_TYPES:: SVt_av
+
+    sv_av: &($1->value.A)
+#---------------------------------------- 
+subcode: with_sv_list(sv)
+    $(set:list=$(sv)->value.A.p_array)
+    $(set:i_0=$(sv)->value.A.i_0)
+    $(set:i_n=$(sv)->value.A.i_n)
+    $(set:size=$(sv)->value.A.size)
+    p_sv = $(list)+$(i_0)
+    n_len  = $(i_n)-$(i_0)
+    BLOCK
+
+subcode: sv_set_av(sv, list, i_0, i_n, size)
+    $(set:av=$(sv)->value.A)
+    $(av).p_array=$(list)
+    $(av).i_0 = $(i_0)
+    $(av).i_n = $(i_n)
+    $(av).size = $(size)
+
+subcode:: sv_ref_release
+    $case $(T:av)
+        &call with_sv_list, sv
+            $if $(list)
+                $for i=$(i_0):$(i_n)
+                    SV_refdec($(list)[i])
+                free($(list))
+
+fncode: SV_av_on_write(sv)
+    $call assert, sv->type == SVt_av
+    &call sv_on_write, sv
+        &call with_sv_list, sv
+            $my p_sv_new
+            $allocate(n_len+20) p_sv_new
+            memcpy(p_sv_new+10, p_sv, n_len*sizeof(struct SV*))
+            $(i_0)=10
+            $(i_n)=10+n_len
+            $(size)=n_len+20
+            
+#---------------------------------------- 
+subcode: _autoload
+    $global darray g_av_heap: struct SV*
+
+#- here is the trick: many lists (register) are built and returned 
+#-     so we allocate 10-slot quick lists, 
+#-     as soon as it grows over 10, we'll trigger copy_on_write
+subcode: get_svav_quick(sv, N)
+    g_av_heap.$grow $(N)
+    &call with_sv_list, $(sv)
+        $(list)=&g_av_heap[g_av_heap_len]
+        $(i_0)=0
+        $(i_n)=0
+        $(size)=0
+    g_av_heap_len+=$(N)
+    $call @count, get_svav_quick
+    $(sv)->copy = 1
+
+subcode: ret_svav_quick(sv, N)
+    &call with_sv_list, $(sv)
+        p_sv = $(list)
+        $for i=$(i_0):$(i_n)
+            SV_refdec(p_sv[i])
+        $if $(sv)->copy==0
+            free($(list))
+            $(list)=NULL
+    g_av_heap_len-=$(N)
+    $call @count, ret_svav_quick
+
+#---- AV functions ----------------------------
 macros:
     AV_HEADROOM: 10
     av_count: ($1->i_n-$1->i_0)
-
-fncode: AV_new
-    $local av
-    $allocate(1,0) av
-    # $print "AV_new: %p", av
-    return av
-
-fncode: AV_free(av)
-    # $print "AV_free: %p", av
-    $call @debug_AV_free
-    $if av->p_array
-        $for i=av->i_0:av->i_n
-            $if av->p_array[i]
-                SV_refdec(av->p_array[i])
-        free(av->p_array)
-    free(av)
 
 fncode: AV_resize(av, n)
     $if n==0

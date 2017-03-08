@@ -13,7 +13,7 @@ macros:
     # BASIC can directly copy values
     SV_BASIC:: SVt_undef, SVt_int, SVt_float
     # Other SV may hold additional pointers
-    SV_TYPES:: SVt_av, SVt_hv, SVt_sv
+    SV_TYPES:: SVt_hv, SVt_sv
 
 subcode: _autoload
     $call @sv_prerequisite
@@ -56,8 +56,8 @@ subcode: sv_set_type(sv, sigil)
         $(sv)->type = SVt_undef
 
 subcode: sv_init(sv, type)
-    $(sv)->type = $(type)
-    $(sv)->refcnt = 1
+    $(if:type!=_)
+        $(sv)->type = $(type)
     memset(&$(sv)->value, 0, sizeof($(sv)->value))
 
 subcode: sv_set_n(sv, n)
@@ -78,7 +78,9 @@ subcode: sv_set_p(sv, p, type)
 # refcnt refers to the SV variable itself, not its content
 #     its content is managed by copy_on_write
 fncode: SV_refinc(sv)
-    sv->refcnt++
+    # refcnt==0 is special
+    $if sv->refcnt>0
+        sv->refcnt++
 
 fncode: SV_refdec(sv)
     # $print "SV_refdec %p - %d", sv, sv->refcnt
@@ -86,30 +88,27 @@ fncode: SV_refdec(sv)
         sv->refcnt--
         $if sv->refcnt==0
             $call @sv_decopy
-            $(set:T=sv->type==SVt_$1)
-            $(set:p=sv->value.p)
-            $call @sv_ref_release
-            $case $(p)
-                $case $(T:sv)
-                    SV_refdec((struct SV*)$(p))
-                $case $(T:av)
-                    AV_free((struct AV*)$(p))
-                $case $(T:hv)
-                    HV_free((struct HV*)$(p))
-                $call @sv_ref_release_cases
-                sv->value.p = NULL
+            $call sv_value_release, sv
             sv_release:
             $call @sv_release
     return
 
 fncode: SV_undef(sv)
-    SV_refdec(sv)
+    $call sv_value_release, sv
     memset(&sv->value, 0, sizeof(sv->value))
-    $(set:T=sv->type==SVt_$1)
-    $if !($(T:av) || $(T:hv))
-        sv->type=SVt_undef
 
+subcode: sv_value_release(sv)
+    $(set:T=$(sv)->type==SVt_$1)
+    $(set:p=$(sv)->value.p)
+    $call @sv_ref_release
+    $case $(p)
+        $case $(T:$(sv))
+            SV_refdec((struct SV*)$(p))
+        $case $(T:hv)
+            HV_free((struct HV*)$(p))
+        $call @sv_ref_release_cases
+
+#---------------------------------------- 
 macros:
-    sv_av: (struct AV*)$1->value.p
     sv_hv: (struct HV*)$1->value.p
     

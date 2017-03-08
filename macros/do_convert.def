@@ -1,4 +1,7 @@
-# scalar context
+#---------------------------------------- 
+#- do_string will "destroy" sv
+#-     if we still need sv, refinc it first. 
+#-     ref: sv_string.def -- SV_append_sv
 fncode: do_string(sv)
     $(set:T=sv->type==SVt_$1)
     $if !sv || $(T:undef)

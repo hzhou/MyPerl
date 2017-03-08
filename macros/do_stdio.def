@@ -80,24 +80,21 @@ subcode:: eval_fn_cases
         sv_io = AV_shift(av)
         sv_file = AV_get(av, 0)
         $call assert, sv_io->type==SVt_io
-        SV_refdec(sv_io)
+        SV_undef(sv_io)
         &call if_sv_string, sv_file
             $call parse_open, $(s), $(n)
             $if ts_mode
                 file_tmp = fopen(s, ts_mode)
                 $if file_tmp
                     sv_io->value.p = file_tmp
-                    SV_refinc(sv_io)
-                    sv_ret = sv_io
-                $else
-                    sv_io->value.p = NULL
+                    sv_ret = SV_copy(NULL, sv_io)
             $else
                 $call die, "open: pipe yet to be supported"
         $else
             $call die, "open: missing file"
         break
     case WORD_close:
-        SV_refdec(sv_right)
+        SV_undef(sv_right)
         break
     # --------------------------
     subcode: parse_open(s, n)

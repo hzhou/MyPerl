@@ -121,7 +121,8 @@ subcode: load_modules
         $if ts_file
             &call compile
                 cv_module = f_parse_script(ts_file)
-            $call run, cv_module
+            &call run, cv_module
+                NOOP
         $else
             $call die, "can't find module %s", modules[i]
 

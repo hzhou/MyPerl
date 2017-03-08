@@ -65,7 +65,8 @@ fncode: run_script(s_file)
 
     stash_global = g_stashes[1]
     $call optimize
-    $call run, cv_main
+    &call run, cv_main
+        NOOP
 
 #---------------------------------------- 
 subcode: _autoload

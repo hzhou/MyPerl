@@ -61,52 +61,21 @@ fncode: eval_list
 
     $if op->type==OP_list
         n=op->left.n
+        op_list = op->right.op
+        # $print "eval_list: $n items"
+        $for i=0:n
+            $call add_to_list, &op_list[i]
     $else
-        n=1
+        $call add_to_list, op
+    return sv
 
-    op_list = op->right.op
-    # $print "eval_list: $n items"
-    $for i=0:n
-        sv_item = eval_op(&op_list[i], $(CTX))
-        $call av_push, av, sv_item
+    subcode: add_to_list(op)
+        sv_item = eval_op($(op), $(CTX))
+        $if sv_item->type==SVt_av && !($(IS_LEFT))
+            av_item = $(sv_av:sv_item)
+            &call av_each, av_item
+                AV_push(av, $(sv))
+        $else
+            AV_push(av, sv_item)
         $call ret_svreg, sv_item
-    return sv
-
-
-fncode: eval_list_old
-    $parameter op_a, op_b, $(PARAM_CTX)
-    # $print "eval_list %p, %p", op_a, op_b
-    $if $(IS_LEFT)
-        NOOP
-    $else
-        tn_context = 2
-    sv_b = eval_op(op_b, $(CTX))
-    $if !op_a
-        $if sv_b->type == SVt_av
-            return sv_b
-        $else
-            $call get_av_reg, sv, av
-    $else
-        sv_a = eval_op(op_a, $(CTX))
-        $if $(sv_is_reg:sv_a) && sv_a->type==SVt_av
-            sv = sv_a
-            av = $(sv_av:sv)
-        $else
-            $call get_av_reg, sv, av
-            # $print "new sv av: %p - %p", sv, av
-            $call av_push, av, sv_a
-            $call ret_svreg, sv_a
-
-    $call av_push, av, sv_b
-    $call ret_svreg, sv_b
-    return sv
-
-subcode: av_push(av_list, sv_item)
-    $if $(sv_item) && $(sv_item)->type==SVt_av
-        av_item = $(sv_av:$(sv_item))
-        $call assert, av_item!=av
-        &call av_each, av_item
-            AV_push($(av_list), $(sv))
-    $else
-        AV_push($(av_list), $(sv_item))
 

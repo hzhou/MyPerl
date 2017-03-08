@@ -10,7 +10,6 @@ subcode:: eval_op_cases
         i_var = (int)op->right.n
         $call @g_local_shift_ivar
         sv_var = &g_local[i_var]
-        # $print "local var %d: %p", i_var, sv_var
         $if $(opT:MY)
             $call sv_set_type, sv_var, op->left.n
         $call return_var
@@ -80,10 +79,6 @@ subcode:: eval_op_cases
 
     subcode: op_assign_av
         av_a = $(sv_av:sv_var)
-        $if !av_a
-            # empty
-            av_a=AV_new()
-            sv_a->value.p = av_a
         $if sv_b->type==SVt_av
             av_b = $(sv_av:sv_b)
             &call av_each, av_a
@@ -94,6 +89,7 @@ subcode:: eval_op_cases
                     do_assign($(sv), sv_b)
                 $else
                     SV_undef($(sv))
+                    $(sv)->type=SVt_undef
 
 fncode: do_assign(sv_var, sv_val)
     $if !sv_var
@@ -122,8 +118,7 @@ fncode: do_assign(sv_var, sv_val)
 
     # -----------------------------
     subcode: copy_array(dst, src)
-        av = AV_new()
-        $(dst)->value.p = av
+        av = $(sv_av:$(dst))
         av_val = $(sv_av:$(src))
         &call av_each, av_val
             sv_temp = get_sv(0)

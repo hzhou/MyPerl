@@ -89,7 +89,7 @@ subcode:: eval_op_cases
         $if $(ret)
             $if $(IS_LIST)
                 sv_ret = get_svreg(SVt_av)
-                av = AV_new()
+                av = $(sv_av:sv_ret)
                 $call sv_set_p, sv_ret, av, SVt_av
                 &call with_regex
                     $for i=1:$(ret)

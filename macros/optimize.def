@@ -74,11 +74,14 @@ subcode:: eval_op_cases
     subcode: op_bin_const(n)
         sv_a = eval_op($(L), $(CTX_SCALAR))
         $(n)_2 = $(R)->right.sv->value.$(n)
+        $(set:bin_op=$(R)->left.n)
         $(if:n=f)
             SV_to_float(sv_a)
             $call op_bin_const_switch, f, $(n)_2
         $(else)
-            $if sv_a->type==SVt_float
+            $if $(bin_op)==OP_$(sym:/)
+                SV_to_float(sv_a)
+            $if sv_a->type==SVt_float 
                 $call op_bin_const_switch, f, $(n)_2
             $else
                 SV_to_int(sv_a)
@@ -86,10 +89,14 @@ subcode:: eval_op_cases
         return sv_a
 
     subcode: op_bin_const_switch(n, n2)
-        switch($(R)->left.n){
-            $(for:+,-)
+        switch($(bin_op)){
+            $(for:+,-,*,/)
                 case OP_$(sym:$1):
                     sv_a->value.$(n) $1= $(n2)
+                    break
+            $(if:n=n && n2=n_2)
+                case OP_$(sym:%):
+                    sv_a->value.$(n) %= $(n2)
                     break
             $(for:<,>)
                 case OP_$(sym:$1):
@@ -100,7 +107,7 @@ subcode:: eval_op_cases
                     sv_a->type = SVt_int
                     break
             default:
-                $call die, "OP_bin_const_int: unsupported op %s", get_OP_name($(R)->left.n)
+                $call die, "OP_bin_const_$(n): unsupported op %s", get_OP_name($(R)->left.n)
         }
         
 

@@ -6,6 +6,7 @@ subcode: _autoload
     # make 0th unavailable
     $(block:main_init)
         svcopy[0]=1
+        svcopy[1]=1 # this is pseudo copy
 
 fncode: get_copy
     $if n_svcopy>=$(N_COPIES)
@@ -23,9 +24,13 @@ fncode: get_copy
         # to optimize, use power of 2 and bit mask
         i_svcopy=(i_svcopy+1)%$(N_COPIES)
 
-subcode: ret_copy(sv)
-    $(set:i=$(sv)->copy)
-    $if $(i)
+fncode: ret_copy(sv)
+    $(set:i=sv->copy)
+    tb_need_copy = 0
+    $if $(i)==1
+        $(i)=0
+        return 1
+    $elif $(i)
         $my i
         i = $(i)
         $(i)=0
@@ -38,21 +43,22 @@ subcode: ret_copy(sv)
         $else
             # on_write: duplicate
             # on refdec: return (do not free)
-            BLOCK
+            return 1
+    return 0
 
 subcode: sv_on_write(sv)
     $(set:msg=sv_on_write)
-    &call ret_copy, $(sv)
+    $if ret_copy($(sv))
         BLOCK
 
 #----------------------------------------------- 
 #- ref: SV_refdec
 subcode: sv_decopy
     $(set:msg=sv_decopy)
-    &call ret_copy, sv
+    $if ret_copy(sv)
         goto sv_release
 
-# -------------------------
+#---------------------------------------- 
 fncode: SV_copy(sv_ret, sv)
     $if !sv
         $if !sv_ret

@@ -1,6 +1,7 @@
 #----- registers -----------------
 macros:
-    N_REGS: 100
+    MASK_REGS: 0xff
+    N_REGS: 0x100
 
 subcode: _autoload
     $global struct SV svregs[$(N_REGS)], i_svreg=0, n_svreg=0
@@ -21,10 +22,12 @@ fncode: get_svreg(tn_type)
     return sv
 
     subcode: inc_i_svreg
-        i_svreg=(i_svreg+1)%$(N_REGS)
+        # %->&: 0.885s -> 0.803s
+        i_svreg=(i_svreg+1) & $(MASK_REGS)
 
     subcode: _init
         sv->flag = SVf_register
+        sv->refcnt = 1
         $call sv_init, sv, tn_type
 
 subcode: ret_svreg(sv)
@@ -48,8 +51,7 @@ subcode: get_string_reg(sv)
 
 subcode: get_av_reg(sv, av)
     $(sv) = get_svreg(SVt_av)
-    $(av) = AV_new()
-    $call sv_set_p, $(sv), $(av), _
+    $(av) = $(sv_av:$(sv))
 
 subcode: get_hv_reg(sv, hv)
     $(sv) = get_svreg(SVt_hv)
