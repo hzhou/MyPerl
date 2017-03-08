@@ -8,6 +8,7 @@ subcode:: eval_op_cases
     case OP_MY:
     case OP_LOCAL:
         i_var = (int)op->right.n
+        $call @g_local_shift_ivar
         sv_var = &g_local[i_var]
         # $print "local var %d: %p", i_var, sv_var
         $if $(opT:MY)

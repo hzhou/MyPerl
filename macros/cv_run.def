@@ -4,12 +4,14 @@ fncode: run_cv
     $parameter cv, $(PARAM_CTX)
     $if tn_level>0
         i_0 = cv->i_start
-        i_n = g_local_len
-        $if cv->n_vars>0
-            memset(g_local+i_0, 0, cv->n_vars * $(sv_size))
-            g_local_len+=cv->n_vars
-        $else
-            g_local_len = i_0
+        $call @g_local_shift_run_cv
+        i_save_len = g_local_len
+        g_local_len = i_0
+        $(set:n=cv->n_vars)
+        $if $(n)>0
+            g_local.$grow $(n)
+            memset(g_local+i_0, 0, $(n) * $(sv_size))
+            g_local_len += $(n)
     $else
         memset(g_local, 0, g_local_len * $(sv_size))
 
@@ -21,7 +23,7 @@ fncode: run_cv
         $for i=i_0:g_local_len
             # $print deref $i
             SV_refdec(&g_local[i])
-        g_local_len = i_n
+        g_local_len = i_save_len
 
     return sv_ret
 

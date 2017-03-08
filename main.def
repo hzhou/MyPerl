@@ -45,6 +45,7 @@ page: myperl, basic_frame
         run_script(s_script_file)
     $else
         run_repl()
+    $call @perl_exit
 
     subcode: parse_cmdline
         $local s_script_file=NULL

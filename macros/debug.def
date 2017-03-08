@@ -5,6 +5,16 @@
 subcode: _autoload
     $global n_debug=0
 
+#-- util ------------------------------------- 
+subcode: count(v)
+    $global n_$(v)
+    n_$(v)++
+    $(block:_debug_count)
+        $dump n_$(v)
+
+subcode:: perl_exit
+    DUMP_STUB _debug_count
+
 #-- check input from f_skip_line ------------- 
 subcode: debug_check_flag
     $if *s=='D'

@@ -90,9 +90,11 @@ subcode: run_sub
     &call check_file_scope
         &call check_cv_scope
             &call set_I_at_ARG, av_arg
+                $global sv_RETURN
+                sv_RETURN=NULL
                 sv_ret = run_cv(cv, $(CTX))
                 $call ret_svreg, sv_ret
-                $call get_returns
+                sv_ret = sv_RETURN
     return sv_ret
 
     # ----------------------------------
@@ -108,28 +110,12 @@ subcode: run_sub
             $(da:g_local) = g_file_scopes[cur_file_scope]
             $call @debug_file_scope
 
-        &call check_cv_scope
-            BLOCK
+        BLOCK
 
         $if i_file_scope_save>=0
             cur_file_scope = i_file_scope_save
             $(da:g_local) = cur_stack_save
             $call @debug_file_scope
-
-    subcode: check_cv_scope
-        n_save = 0
-        $if cv->i_start + cv->n_vars > g_local_len
-            n_save = g_local_len - cv->i_start
-        $else
-            n_save = cv->n_vars
-        # $print "save cv_scope @%d + %d",cv->i_start,n_save
-        $if n_save > 0
-            sv_local = g_local+cv->i_start
-            $allocate(n_save) sv_save
-            memcpy(sv_save,sv_local, n_save*$(sv_size))
-        BLOCK
-        $if n_save
-            memcpy(sv_local,sv_save, n_save*$(sv_size))
 
     # ---------------------
     subcode: set_I_at_ARG(av)
@@ -137,6 +123,8 @@ subcode: run_sub
         av_save = $(av_arg)
         $call setup_args
         BLOCK
+        $if $(av_arg)
+            AV_free($(av_arg))
         $(av_arg) = av_save
 
         subcode: setup_args
@@ -147,46 +135,38 @@ subcode: run_sub
                 $call ret_svreg, sv_arg
             $else
                 $(av_arg) = AV_new()
-                AV_push($(av_arg), sv_arg)
+                sv = get_sv(0)
+                sv = SV_copy(sv, sv_arg)
+                AV_push($(av_arg), sv)
                 $call ret_svreg, sv_arg
 
-            g_global[I_at_RET].value.p = NULL
+#----------------------------------------------- 
+subcode: _autoload
+    $global int g_local_shift, int g_local_start
 
-    # ---------------------
-    subcode: get_returns
-        AV_free(g_global[I_at_ARG].value.p)
+subcode: g_local_shift_ivar
+    $if g_local_shift && i_var>=g_local_start
+        i_var += g_local_shift
 
-        av_ret = (struct AV*)g_global[I_at_RET].value.p
-        $if av_ret
-            $if $(IS_LIST)
-                sv_ret = get_svreg(SVt_av)
-                $call sv_set_p, sv_ret, av_ret, _
-            $else
-                sv_ret = AV_shift(av_ret)
-                AV_free(av_ret)
-        $else
-            sv_ret = NULL
+subcode: g_local_shift_run_cv
+    i_0 += g_local_shift
+
+subcode: check_cv_scope
+    i_save_start = g_local_start
+    i_save_shift = g_local_shift
+    g_local_start = cv->i_start
+    g_local_shift = g_local_len - cv->i_start
+    BLOCK
+    g_local_start = i_save_start
+    g_local_shift = i_save_shift
 
 #----------------------------------------------- 
 subcode:: eval_op_cases
     case OP_RETURN:
-        # simply clear @_ and put returns there
-        $(set:av_ret=g_global[I_at_RET].value.p)
-        sv_ret = eval_op(op->right.op, $(CTX_LIST))
-        $if !sv_ret
-            $(av_ret)=NULL
-        $elif sv_ret->type==SVt_av
-            $(av_ret)=$(sv_av:sv_ret)
-            sv_ret->value.p = NULL
-            $call ret_svreg, sv_ret
-        $else
-            av_ret = AV_new()
-            AV_push(av_ret, sv_ret)
-            $(av_ret) = av_ret
-            $call ret_svreg, sv_ret
-        # set sv_ret to OP_GOTO 
-        sv_ret=get_svreg(SVt_undef)
+        $global sv_RETURN
+        sv_RETURN = eval_op(op->right.op, $(CTX_LIST))
         cv = op->left.cv
+        sv_ret=get_svreg(0)
         $call sv_set_goto, sv_ret, cv, GOTO_return
         return sv_ret
 
