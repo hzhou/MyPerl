@@ -1,0 +1,42 @@
+subcode: _autoload
+    $global darray g_list: struct SV*
+
+subcode:: sv_prerequisite
+    $struct(LIST) i_0, i_n
+
+macros:
+    SV_UNION:: struct LIST L
+    SV_TYPES:: SVt_list
+
+subcode: with_sv_list(sv)
+    $(set:i_0=$(sv)->value.L.i_0)
+    $(set:i_n=$(sv)->value.L.i_n)
+    BLOCK
+
+subcode:: sv_ref_release
+    $case $(T:list)
+        &call with_sv_list, sv
+            $call assert, $(i_n)==g_list_len
+            $for i=$(i_0):$(i_n)
+                SV_refdec(g_list[i])
+            g_list_len = $(i_0)
+
+#---------------------------------------- 
+#- note: only used in eval_op, etc.
+#-       in fact, only in list assignment, OP_FN_LIST
+subcode: quick_list(sv)
+    $(sv)->value.L.i_0 = g_list_len
+    BLOCK
+    $(sv)->value.L.i_n = g_list_len
+
+    subcode: list_add(sv_item)
+        $if $(sv_item)->type==SVt_av && !($(IS_LEFT))
+            av_item = $(sv_av:$(sv_item))
+            &call av_each, av_item
+                g_list.$push $(sv)
+                SV_refinc($(sv))
+            SV_refdec($(sv_item))
+        $else
+            g_list.$push $(sv_item)
+
+
