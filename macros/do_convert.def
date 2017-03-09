@@ -36,6 +36,7 @@ fncode: do_int(sv)
         return $(av_count:av)
     $call @do_int_cases
     $else
+        # $print "sv is svregs+%d", (int)(sv-svregs)
         $call die, "do_int type not supported [%s]", get_SV_name(sv->type)
 
 fncode: do_float(sv)

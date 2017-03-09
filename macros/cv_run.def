@@ -32,7 +32,8 @@ fncode: run_cv
         op_block = cv->op_block
         $if op_block->type==OP_block
             # label, goto, break, continue  only supported in OP_block
-            $call do_cv_op_block
+            &call svregs_ret_1
+                $call do_cv_op_block
         $else # OP_CV, OP_IF
             sv_ret = eval_op(cv->op_block, $(CTX_VOID))
         # ----------------------
@@ -43,7 +44,8 @@ fncode: run_cv
             $while 1
                 $(set:op=op_list[i])
                 $call @debug_cv_run_op_block
-                sv_ret=eval_op(&$(op), 0, 0)
+                $call @svregs_reset
+                sv_ret=eval_op(&$(op), $(CTX_SCALAR))
                 $if sv_ret && sv_ret->type==SVt_goto
                     $call @handle_goto
                 i++
@@ -51,7 +53,6 @@ fncode: run_cv
                     $call ret_svreg, sv_ret
                 $else
                     break
-
 
 #- goto, and op_block ----------------------- 
 subcode:: define_ops
@@ -131,7 +132,7 @@ subcode: handle_goto
         # goto
         $call check_goto
     $else
-        # last, next, redo
+        # last, next, redo, return
         $call check_break
 
     subcode: check_goto
@@ -149,10 +150,11 @@ subcode: handle_goto
         $if $(b) != cv
             break
         $elif $(i)==GOTO_return
-            $call simple_break
+            # ref: do_sub.def
+            $call simple_break, sv_RETURN
         $elif cv->flag == CVf_loop
             $if $(i) == GOTO_last
-                $call simple_break
+                $call simple_break, NULL
             $elif $(i) == GOTO_next
                 $call loop_next
             $elif $(i) == GOTO_redo
@@ -160,14 +162,14 @@ subcode: handle_goto
         $else
             # Bare block
             $if $(i) == GOTO_last ||$(i) == GOTO_next
-                $call simple_break
+                $call simple_break, NULL
             $elif $(i) == GOTO_redo
                 # redo the block
                 continue
 
-        subcode: simple_break
+        subcode: simple_break(ret)
             $call ret_svreg, sv_ret
-            sv_ret = NULL
+            sv_ret = $(ret)
             break
 
         subcode: loop_next

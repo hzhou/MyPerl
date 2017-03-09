@@ -1,45 +1,82 @@
 #----- registers -----------------
 macros:
-    MASK_REGS: 0xff
-    N_REGS: 0x100
+    SVREGS_BATCH: 100
+    SVREGS_THRESH: 75
 
 subcode: _autoload
-    $global struct SV svregs[$(N_REGS)], i_svreg=0, n_svreg=0
+    $global struct SV* svregs, i_svreg
+    $(block:main_init)
+        $allocate($(SVREGS_BATCH), 0) svregs
+
+# note: sv_RETURN (do_sub.def) are not safe
+subcode: svregs_ret_1
+    $global struct SV* svregs, i_svreg
+    $call svregs_mark
+    BLOCK
+    $call svregs_save_sv_ret
+
+    subcode: svregs_mark
+        $local sv_reg_save=NULL, i_reg_save
+        $if i_svreg > $(SVREGS_THRESH)
+            $print allocate additional svregs ...
+            sv_reg_save, i_reg_save = svregs, i_svreg
+            $allocate($(SVREGS_BATCH), 0) svregs
+            i_svreg = 0
+        i_mark_svreg = i_svreg
+        # ------------
+    subcode: svregs_reset
+        # $call @check
+        i_svreg = i_mark_svreg
+        # ------------
+        subcode: check
+            $for j=i_mark_svreg:i_svreg
+                $if svregs[j].refcnt
+                    $print register not returned [$j]
+
+    subcode: svregs_save_sv_ret
+        $if sv_reg_save
+            $call copy_sv_ret, sv_reg_save+i_reg_save
+            free(svregs)
+            svregs, i_svreg = sv_reg_save, i_reg_save+1
+            sv_reg_save=NULL
+        $else
+            $call copy_sv_ret, svregs+i_mark_svreg
+            i_svreg = i_mark_svreg+1
+
+        subcode: copy_sv_ret(end)
+            $if sv_ret
+                sv_end = $(end)
+                memcpy(sv_end, sv_ret, $(sv_size))
+                sv_ret = sv_end
 
 fncode: get_svreg(tn_type)
-    $return_type struct SV*
-    $if n_svreg>=$(N_REGS)
-        $print registers exhausted
-        return get_sv(tn_type)
-
-    $while svregs[i_svreg].flag
-        $call inc_i_svreg
-
-    sv= &svregs[i_svreg]
-    $call _init
-    n_svreg++
-    $call @count, get_svreg
+    # $call check_limit
+    sv = &svregs[i_svreg++]
+    # $call check_max
+    $call init
     return sv
-
-    subcode: inc_i_svreg
-        # %->&: 0.885s -> 0.803s
-        i_svreg=(i_svreg+1) & $(MASK_REGS)
-
-    subcode: _init
+    # ------------
+    subcode: init
         sv->flag = SVf_register
         sv->refcnt = 1
         $call sv_init, sv, tn_type
 
+    subcode: check_limit
+        $if i_svreg>$(SVREGS_BATCH)
+            $call die, "Maximum registers reached"
+
+    subcode: check_max
+        $global n_max_svregs_len
+        $if n_max_svregs_len < i_svreg
+            n_max_svregs_len = i_svreg
+        $(block:_debug_count)
+            $dump n_max_svregs_len
+
+
+#----------------------------------------------- 
 subcode: ret_svreg(sv)
     $if $(sv)
         SV_refdec($(sv))
-
-#----------------------------------------------- 
-subcode:: sv_release
-    $case $(sv_is_reg:sv)
-        sv->flag = 0
-        n_svreg--
-        $call @count, ret_svreg
 
 #----------------------------------------------- 
 #- convenience

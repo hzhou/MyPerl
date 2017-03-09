@@ -71,9 +71,10 @@ subcode:: eval_op_cases
     case OP_fcall:
         i_sub=op->left.n
         cv = subs[i_sub]
-        sv_arg = eval_op(op->right.op, $(CTX_LIST))
-        sv_ret = f_run_sub(cv, sv_arg, $(CTX))
-        $call ret_svreg, sv_arg
+        # &call svregs_ret_1
+            sv_arg = eval_op(op->right.op, $(CTX_LIST))
+            sv_ret = f_run_sub(cv, sv_arg, $(CTX))
+            $call ret_svreg, sv_arg
         return sv_ret
 
 #---------------
@@ -92,11 +93,7 @@ fncode: f_run_sub
     &call check_file_scope
         &call check_cv_scope
             &call set_I_at_ARG, av_arg
-                $global sv_RETURN
-                sv_RETURN=NULL
                 sv_ret = run_cv(cv, $(CTX))
-                $call ret_svreg, sv_ret
-                sv_ret = sv_RETURN
     return sv_ret
 
     # ----------------------------------

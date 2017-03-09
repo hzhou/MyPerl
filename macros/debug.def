@@ -83,8 +83,6 @@ subcode: debug_eval_op
 subcode: debug_cv_run_op_block
     $if cv->debug
         $print "cv_run %s [$i/$n]", cv->flag==CVf_loop?"loop":"block"
-        $if n_svreg!=0
-            $print "    reg: $n_svreg"
 
 #---- var, scope -------------------------------- 
 /*
