@@ -60,36 +60,91 @@ subcode:: eval_op_cases
         $map ret_svreg, sv_a, sv_b
         return sv
     
+#---------------------------------------- 
 #---- Assignment ------------------------- 
 subcode:: eval_op_cases
     # ref: do_bin_ops.def -- opeq
     case OP_ASSIGN:
         sv_var = eval_op($(L), $(CTX_LEFT))
-        $if sv_var->type==SVt_av && $(sv_is_reg:sv_var)
-            sv_b = eval_op($(R), $(CTX_LIST))
-            $call op_assign_av
+        $if sv_var->type==SVt_list
+            sv_b = eval_list($(R), $(CTX_LIST))
+            $call op_assign_list
+        $elif sv_var->type==SVt_av
+            sv_b = eval_list($(R), $(CTX_LIST))
+            &call with_sv_list, sv_b
+                do_assign_av(sv_var, $(i_0), $(i_n))
+        $elif sv_var->type==SVt_hv
+            sv_b = eval_list($(R), $(CTX_LIST))
+            &call with_sv_list, sv_b
+                do_assign_hv(sv_var, $(i_0), $(i_n))
         $else
-            # dump_sv(sv_var, "assign ")
             sv_b = eval_op($(R), $(CTX_SCALAR))
             do_assign(sv_var, sv_b)
 
-        sv_ret=SV_copy(NULL, sv_var)
-        $map ret_svreg, sv_var, sv_b
+        $if sv_var->type==SVt_list
+            # list cannot be copied, temporary hack
+            sv_ret = NULL
+        $else
+            sv_ret=SV_copy(NULL, sv_var)
+        $map ret_svreg, sv_b, sv_var
         return sv_ret
 
-    subcode: op_assign_av
-        av_a = $(sv_av:sv_var)
-        $if sv_b->type==SVt_av
-            av_b = $(sv_av:sv_b)
-            &call av_each, av_a
-                do_assign($(sv), AV_get(av_b, $(i)))
-        $else
-            &call av_each, av_a
-                $if i==0
-                    do_assign($(sv), sv_b)
+    subcode: op_assign_list
+        $(for:var, b)
+            &call with_sv_list, sv_$1
+                i_0_$1 = $(i_0)
+                i_n_$1 = $(i_n)
+
+        $for i=i_0_var:i_n_var
+            $if i_0_b < i_n_b
+                $if g_list[i]->type == SVt_av
+                    do_assign_av(g_list[i], i_0_b, i_n_b)
+                    i_0_b = i_n_b
+                $elif g_list[i]->type == SVt_hv
+                    do_assign_hv(g_list[i], i_0_b, i_n_b)
+                    i_0_b = i_n_b
                 $else
-                    SV_undef($(sv))
-                    $(sv)->type=SVt_undef
+                    do_assign(g_list[i], g_list[i_0_b])
+                    i_0_b++
+            $else
+                SV_undef(g_list[i])
+                g_list[i]->type = SVt_undef
+
+fncode: do_assign_av(sv_var, i_0, i_n)
+    av = $(sv_av:sv_var)
+    $for i=i_0:i_n
+        sv_temp = get_sv(0)
+        SV_copy(sv_temp, g_list[i])
+        AV_push(av, sv_temp)
+        SV_refdec(sv_temp)
+
+fncode: do_assign_hv(sv_var, i_0, i_n)
+    hv = $(sv_hv:sv_var)
+    $if !hv
+        hv = HV_new()
+        sv_var->value.p = hv
+    sv_key = NULL
+    $my s, n
+    $if (i_n-i_0) % 2
+        i_n--
+    $for i=i_0:i_n:2
+        $(set:sv=g_list[i])
+        $(set:sv2=g_list[i+1])
+        $if !$(sv)
+            $call die, "error hash key"
+        $if $(sv)->type==SVt_string
+            sv_key = NULL
+            s=$(sv)->value.S.s
+            n=$(sv)->value.S.n
+        $else
+            SV_copy(sv_key, $(sv))
+            SV_to_string(sv_key)
+            s=sv_key->value.S.s
+            n=sv_key->value.S.n
+        sv = get_sv(0)
+        SV_copy(sv, $(sv2))
+        HV_set(hv, s, n, sv)
+        $call ret_svreg, sv_key
 
 fncode: do_assign(sv_var, sv_val)
     $if !sv_var
@@ -100,52 +155,5 @@ fncode: do_assign(sv_var, sv_val)
         return
 
     # $print "do_assign %p <- %p", sv_var, sv_val
-    $if sv_var->type==SVt_hv
-        $if sv_val->type==SVt_av
-            $call copy_hash, sv_var, sv_val
-        $else
-            $call die, "Error\n"
-    $elif sv_var->type==SVt_av
-        $if sv_val->type==SVt_av
-            $call copy_array, sv_var, sv_val
-        $else
-            $call die, "Error\n"
-    $elif sv_val->type==SVt_av
-        av = $(sv_av:sv_val)
-        $call sv_set_n, sv_var, av->i_n-av->i_0
-    $else
-        SV_copy(sv_var, sv_val)
-
-    # -----------------------------
-    subcode: copy_array(dst, src)
-        av = $(sv_av:$(dst))
-        av_val = $(sv_av:$(src))
-        &call av_each, av_val
-            sv_temp = get_sv(0)
-            SV_copy(sv_temp, $(sv))
-            AV_push(av, sv_temp)
-            SV_refdec(sv_temp)
-
-    subcode: copy_hash(dst, src)
-        av = $(sv_av:$(src))
-        hv = $(sv_hv:$(dst))
-        $if !hv
-            hv = HV_new()
-            $(dst)->value.p = hv
-        sv_key = NULL
-        $my s, n
-        &call av_each_pair, av
-            $if !$(sv)
-                $call die, "error hash key"
-            $if $(sv)->type==SVt_string
-                s=$(sv)->value.S.s
-                n=$(sv)->value.S.n
-            $else
-                SV_copy(sv_key, $(sv))
-                SV_to_string(sv_key)
-                s=sv_key->value.S.s
-                n=sv_key->value.S.n
-            sv = get_sv(0)
-            SV_copy(sv, $(sv2))
-            HV_set(hv, s, n, sv)
+    SV_copy(sv_var, sv_val)
 

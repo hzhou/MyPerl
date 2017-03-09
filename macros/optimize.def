@@ -37,6 +37,11 @@ fncode: f_optimize(op)
                     NOOP
                 $else
                     $call die, "Undefined subroutine %s", $(s)
+            break
+        case OP_ASSIGN:
+            $(recurse)($(L))
+            $(recurse)($(R))
+            break
         default:
             $if $(op_is_bin)
                 $(recurse)($(L))

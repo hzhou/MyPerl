@@ -5,23 +5,25 @@ macros:
 subcode:: eval_fn_cases
     case WORD_print:
     case WORD_printf:
-        sv_io = AV_get(av, 0)
+        &call with_sv_list, sv_right
+            i_0 = $(i_0)
+            i_n = $(i_n)
+        sv_io = g_list[i_0]
         $if sv_io->type != SVt_io
             sv_io = &g_global[I_STDOUT]
         $else
-            AV_shift(av)
+            i_0++
 
         $if $(WORD:print)
-            do_print(sv_io, av)
+            do_print(sv_io, i_0, i_n)
         $else
-            do_printf(sv_io, av)
-
-        $map ret_svreg, sv_io
+            do_printf(sv_io, i_0, i_n)
         break
     case WORD_warn:
     case WORD_die:
         sv_io = &g_global[I_STDERR]
-        do_print(sv_io, av)
+        &call with_sv_list, sv_right
+            do_print(sv_io, $(i_0), $(i_n))
         $if $(WORD:die)
             exit(-1)
         break
@@ -32,10 +34,10 @@ subcode:: universal_vars
     # default undef
 
 #----------------------------------------------- 
-fncode: do_print(sv_io, av)
+fncode: do_print(sv_io, i_0, i_n)
     file_out = (FILE*)sv_io->value.p
-    &call av_each, av
-        sv = $(sv)
+    $for i=i_0:i_n
+        sv = g_list[i]
         $if sv->type==SVt_string
             $(set:S=sv->value.S)
             s=$(S).s
@@ -50,14 +52,14 @@ fncode: do_print(sv_io, av)
         $else
             $call error, "print unsupported sv"
 
-fncode: do_printf(sv_io, av)
+fncode: do_printf(sv_io, i_0, i_n)
     file_out = stdout
-    sv_fmt = AV_get(av, 0)
+    sv_fmt = g_list[i_0]
     &call if_sv_string, sv_fmt
         s_fmt = $(s)
         s_end = s_fmt + $(n)
         s = s_fmt
-        i_arg=1
+        i_arg=i_0+1
         $while 1; s++
             $if s==s_end
                 $call print_sofar, 0
@@ -112,7 +114,8 @@ fncode: do_printf(sv_io, av)
             continue
 
         subcode: do_fmt
-            sv = AV_get(av, i_arg++)
+            sv = g_list[i_arg]
+            i_arg++
             sv_str = SV_fmt(sv, *s, 0, 0, 0)
             $call sv_string_terminate, sv_str
             fputs(sv_str->value.S.s, file_out)

@@ -77,8 +77,9 @@ subcode:: resolve_op_other
 #---- open/close ----------------------
 subcode:: eval_fn_cases
     case WORD_open:
-        sv_io = AV_shift(av)
-        sv_file = AV_get(av, 0)
+        &call with_sv_list, sv_right
+            sv_io = g_list[$(i_0)]
+            sv_file = g_list[$(i_0)+1]
         $call assert, sv_io->type==SVt_io
         SV_undef(sv_io)
         &call if_sv_string, sv_file

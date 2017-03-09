@@ -4,6 +4,7 @@ include: macros/sv.def  # scalar
 include: macros/op.def  # syntax tree
 
 include: macros/sv_string.def
+include: macros/sv_list.def
 include: macros/init.def         # @_, $_, etc.
 
 include: macros/stash.def        # symbol table

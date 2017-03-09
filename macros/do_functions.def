@@ -7,7 +7,6 @@ subcode:: eval_op_cases
         tn_word = op->left.n
         $if tn_word<WORD_FN_LIST
             sv_right = eval_list($(R), $(CTX_LIST))
-            av = $(sv_av:sv_right)
         $else
             sv_right = eval_op($(R), $(CTX_SCALAR))
         sv_ret = NULL
@@ -74,16 +73,13 @@ macros:
 
 subcode:: eval_fn_cases
     case WORD_join:
-        sv_sep = AV_shift(av)
-        sv_ret = get_svreg(SVt_string)
-        tb_flag=0
-        &call av_each, av
-            $if tb_flag
+        &call with_sv_list, sv_right
+            sv_ret = get_svreg(SVt_string)
+            sv_sep = g_list[$(i_0)]
+            SV_append_sv(sv_ret, g_list[$(i_0)+1])
+            $for i=$(i_0)+2:$(i_n)
                 SV_append_sv(sv_ret, sv_sep)
-            $else
-                tb_flag=1
-            SV_append_sv(sv_ret, $(sv))
-        $map ret_svreg, sv_sep
+                SV_append_sv(sv_ret, g_list[i])
         break
 
 #----------------------------------------------- 

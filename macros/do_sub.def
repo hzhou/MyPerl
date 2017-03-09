@@ -71,10 +71,9 @@ subcode:: eval_op_cases
     case OP_fcall:
         i_sub=op->left.n
         cv = subs[i_sub]
-        # &call svregs_ret_1
-            sv_arg = eval_op(op->right.op, $(CTX_LIST))
-            sv_ret = f_run_sub(cv, sv_arg, $(CTX))
-            $call ret_svreg, sv_arg
+        sv_arg = eval_list(op->right.op, $(CTX_LIST))
+        sv_ret = f_run_sub(cv, sv_arg, $(CTX))
+        $call ret_svreg, sv_arg
         return sv_ret
 
 #---------------
@@ -92,7 +91,7 @@ fncode: f_run_sub
     $parameter cv, sv_arg, $(PARAM_CTX)
     &call check_file_scope
         &call check_cv_scope
-            &call set_I_at_ARG, av_arg
+            &call set_I_at_ARG
                 sv_ret = run_cv(cv, $(CTX))
     return sv_ret
 
@@ -117,28 +116,28 @@ fncode: f_run_sub
             $call @debug_file_scope
 
     # ---------------------
-    subcode: set_I_at_ARG(av)
-        $my struct AV save_arg
-        sv = &(g_global[I_at_ARG])
-        av_arg= $(sv_av:sv)
-        memcpy(&save_arg, av_arg, sizeof(struct AV))
+    subcode: set_I_at_ARG
+        $my struct SV save_arg
+        sv_ARG = &(g_global[I_at_ARG])
+        av_ARG = $(sv_av:sv_ARG)
+        memcpy(&save_arg, sv_ARG, $(sv_size))
         &call setup_args
             BLOCK
-        memcpy(av_arg, &save_arg, sizeof(struct AV))
-
+        memcpy(sv_ARG, &save_arg, $(sv_size))
 
         subcode: setup_args
+            sv_ARG->refcnt = 1
             $if !sv_arg
-                $call sv_init, sv, _
-                sv->copy= 0
-            $elif sv_arg->type==SVt_av
-                memcpy(av_arg, $(sv_av:sv_arg), sizeof(struct AV))
+                $call sv_init, sv_ARG, _
+                sv_ARG->copy= 0
             $else
-                $call get_svav_quick, sv, 1
-                AV_push(av_arg, sv_arg)
+                $call assert, sv_arg->type == SVt_list
+                av_ARG->p_array = g_list
+                av_ARG->i_0 = sv_arg->value.L.i_0
+                av_ARG->i_n = sv_arg->value.L.i_n
+                sv_ARG->copy = 1
             BLOCK
-            $if sv_arg && sv_arg->type!=SVt_av
-                $call ret_svav_quick, sv, 1
+            SV_refdec(sv_ARG)
 
 #----------------------------------------------- 
 subcode: _autoload

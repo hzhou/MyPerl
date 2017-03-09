@@ -1,7 +1,7 @@
 #----- registers -----------------
 macros:
-    SVREGS_BATCH: 100
-    SVREGS_THRESH: 75
+    SVREGS_BATCH: 1000
+    SVREGS_THRESH: 50
 
 subcode: _autoload
     $global struct SV* svregs, i_svreg
@@ -17,7 +17,7 @@ subcode: svregs_ret_1
 
     subcode: svregs_mark
         $local sv_reg_save=NULL, i_reg_save
-        $if i_svreg > $(SVREGS_THRESH)
+        $if i_svreg > $(SVREGS_BATCH) - $(SVREGS_THRESH)
             $print allocate additional svregs ...
             sv_reg_save, i_reg_save = svregs, i_svreg
             $allocate($(SVREGS_BATCH), 0) svregs

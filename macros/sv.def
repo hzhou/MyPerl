@@ -16,14 +16,14 @@ macros:
     SV_TYPES:: SVt_hv, SVt_sv
 
 subcode: _autoload
+    $(set:types=$(SV_BASIC),SVt_BASIC,$(SV_TYPES))
+    $enum(svtype) $(types)
+    $global char* SV_names[]={$(join:"*":,:$(types))}
+
     $call @sv_prerequisite
     $(set:t=unsigned char)
-    $struct(SV) $(t) type, $(t) flag, $(t) copy, $(t) refcnt, union value
+    $struct(SV) enum svtype type, $(t) flag, $(t) copy, $(t) refcnt, union value
     $union $(SV_UNION)
-
-    $(set:types=$(SV_BASIC),SVt_BASIC,$(SV_TYPES))
-    $enum $(types)
-    $global char* SV_names[]={$(join:"*":,:$(types))}
 
     $enum SVf_const, SVf_register, SVf_heap
 /*
