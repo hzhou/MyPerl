@@ -149,11 +149,14 @@ subcode: match
 subcode:: pre_shift_other
     $case cur.type==T_BOC && cur.value.n == '{'
         tb_cv = 1
+        # ref: parse_var.def
         &call if_atom_var, 1
             tb_cv=0
         $if tb_cv
             CV_begin()
-            $call @set_cv_flags
+            $if n_bos_word
+                $call @set_cv_flags
+                n_bos_word = 0
             stack[i_top++]=cur
             $call set_cur, T_BOS, 0
             stack[i_top++]=cur
@@ -168,3 +171,4 @@ subcode: check_eoc_match(b,e)
         # ok
     $else
         $call error, "Parentheses mismatch!"
+

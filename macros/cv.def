@@ -1,12 +1,9 @@
 subcode: _autoload
     # ref: scope.def
-    $struct(CV) stash, i_file, i_start, n_vars, n_seq, op_block
-    $struct(CV) int flag
     $register_prefix(cv) struct CV*
-
-    $define(CVf_switch) 1
-    $define(CVf_loop) 2
-    $define(CVf_sub) 3
+    $struct(CV) stash, i_file, i_start, n_vars, n_seq, op_block
+    $enum(CVt) CVt_block, CVt_switch, CVt_loop, CVt_sub
+    $struct(CV) enum CVt type
 
 fncode: CV_new
     $local cv

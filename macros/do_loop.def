@@ -1,3 +1,19 @@
+#---- statement support ---------------- 
+subcode:: parse_keyword_other
+    $local n_bos_word = 0
+
+    subcode: bos_case(word, cv_flag)
+        $case tn_word == WORD_$(word)
+            $call new_op, op, OP_$(word), 0
+            $call set_cur, T_BOS_HEAD, op
+            CV_begin()
+            $(if:cv_flag!=_)
+                cv_cur->type = $(cv_flag)
+            n_bos_word = tn_word
+            goto try_reduce
+
+#----------------------------------------------- 
+#- while/for ----
 macros:
     KEY_OTHER:: while, for
 
@@ -5,28 +21,27 @@ subcode:: define_ops
     $map define_op, while, for
 
 subcode:: parse_keyword_other
-    $(for:w in while, for)
-        $elif tn_word == WORD_$(w)
-            $call new_op, op, OP_$(w), 0
-            $call set_cur, T_BOS_HEAD, op
-            CV_begin()
-            cv_cur->flag = CVf_loop
-            goto try_reduce
+    $call bos_case, while, CVt_loop
+    $call bos_case, for, CVt_loop
 
 #---------------------------
-# we borrow T_BOS_TEMP here as a SEQ binary
 subcode:: reduce_eos_other
-    $elif $(type:2)==T_BOC
+    # for (init ; cond ; cont) { ... }
+    #     a hack, so 1st semi do not reduce '('
+    $elif $(type:2)==T_BOC && n_bos_word==WORD_for
         $call set_cur, T_BOS_TEMP, WORD_for
         $call shift_cur
         goto lexer
 
 subcode:: reduce_binary_cases
     case T_BOS_TEMP:
-        $call new_op2, op, OP_SEQ, $(value:3).op, $(value:1).op
-        $(value:3).op = op
-        i_top-=2
-        goto try_reduce
+        $if n_bos_word==WORD_for
+            $call new_op2, op, OP_SEQ, $(value:3).op, $(value:1).op
+            $(value:3).op = op
+            i_top-=2
+            goto try_reduce
+        $else
+            $call error, "reduce: T_BOS_TEMP?"
 
 #---------------------------
 subcode:: reduce_statement_cv2
@@ -34,7 +49,7 @@ subcode:: reduce_statement_cv2
         $(set:init=NULL)
         $(set:cond=$(op1))
         $(set:cont=NULL)
-        $call reduce_loop_cv2
+        $call reduce_cv2_loop
 
 subcode:: reduce_statement_cv2
     $case $(T)==OP_for
@@ -50,33 +65,113 @@ subcode:: reduce_statement_cv2
         $(set:init=op_init)
         $(set:cond=op_cond)
         $(set:cont=op_cont)
-        $call reduce_loop_cv2
+        $call reduce_cv2_loop
 
+#---- loop common -----------
 subcode:: reduce_statement_cv2
-    subcode: reduce_loop_cv2
-        $(set:N=5)
-        $call new_op_loop_goto, 1
-        $call new_op_loop_cond, $(N)
-        $call make_op_list, $(N), $(init), op_cond, $(op_cv), $(cont), op_goto
+    subcode: reduce_cv2_loop
+        # ref: cv_run.def
+        $call make_op_list, op, OP_loop, 4, $(init), $(cond), $(cont), $(op_cv)
         $call @wrap_scope
         $call cv2_done
-
-        subcode: make_op_list(N, @plist)
-            op_list = get_op_list($(N))
-            $(for:a in $(plist))
-                $(if:a!=NULL)
-                    op_list[$(_i)] = *($(a))
-            $call new_op2, op, OP_block, $(N), op_list
-
-        subcode: new_op_loop_goto(i)
-            $call new_op, op_goto, OP_GOTO, $(i)
-
-        subcode: new_op_loop_cond(N)
-            $call new_op, op_break, OP_GOTO, $(N)
-            op_cond=f_new_op(OP_IF_NO,$(cond),op_break)
 
     subcode: wrap_scope
         cv = CV_close(op)
         $call new_op, op_cv, OP_CV, cv
         $(op) = op_cv
+
+#----------------------------------------------- 
+#- foreach ----
+macros:
+    KEY_OTHER:: foreach
+
+subcode:: define_ops
+    $map define_op, foreach
+
+subcode:: parse_keyword_other
+    $call bos_case, foreach, CVt_loop
+
+# -- foreach always creates my variable ---
+subcode: word_my_foreach
+    $if n_bos_word==WORD_foreach && $(type:1)==T_BOS_HEAD
+        goto lexer
+
+subcode: var_check_foreach
+    $if n_bos_word==WORD_foreach && $(type:2)==T_BOS_HEAD
+        $call add_var_my
+        cur.type=T_ATOM
+        goto do_shift
+
+# -- try reduce: $var (list) -- so reduce_statement_cv2 work
+subcode:: reduce_eoc_special
+    $if n_bos_word==WORD_foreach && $(type:4)==T_BOS_HEAD
+        $call new_op2, op, OP_SEQ, $(value:3).op, $(value:1).op
+        $(value:3).op = op
+        i_top-=2
+        f_commit_local_names()
+        goto lexer
+
+# --
+subcode:: reduce_statement_cv2
+    $case $(T)==OP_foreach
+        # we may differentiate list and array
+        op_var = $(op1)->left.op
+        op_list = $(op1)->right.op
+        i_var = op_var->right.n
+        $call new_op2, op_each, OP_each_av, i_var, op_list
+        $call new_op2, op_cond, OP_LOCAL, '$', i_var
+        $(set:init=op_each)
+        $(set:cond=op_cond)
+        $(set:cont=op_each)
+        $call reduce_cv2_loop
+
+#---- alias/iterator --------------------------- 
+#- note: iterator does not need sv_ref_release
+subcode:: sv_prerequisite
+    $struct(ITERATOR) sv_list, i, is_hash
+
+macros:
+    SV_UNION:: struct ITERATOR IT
+    SV_TYPES:: SVt_iter
+
+subcode: handle_alias
+    $if sv_var->type == SVt_iter
+        $(set:it=sv_var->value.IT.$1)
+        $(set:list=sv_list->value.L.$1)
+        sv_list = $(it:sv_list)
+        $if $(it:i)>=$(list:i_n)
+            sv_var = NULL
+        $elif $(it:is_hash)
+            $call error, "not supported, yet"
+        $else
+            sv_var = g_list[$(list:i_0) + $(it:i)]
+
+subcode:: define_ops
+    $map define_op, each_av, each_hv
+
+subcode:: eval_op_cases
+    case OP_each_av:
+        $call do_each, av
+        return NULL
+    case OP_each_hv:
+        $call do_each, hv
+        return NULL
+
+    subcode: do_each(av)
+        i_var = op->left.n
+        $(set:it=g_local[i_var].value.IT.$1)
+        $if g_local[i_var].type != SVt_iter
+            sv_list = eval_list(op->right.op, $(CTX_ALIAS))
+            g_local[i_var].type = SVt_iter
+            $(it:sv_list) = sv_list
+            $(if:av=av)
+                $(it:is_hash) = 0
+            $(else)
+                $(it:is_hash) = 1
+            $(it:i) = sv_list->value.L.i_0
+        $else
+            $(if:av=av)
+                $(it:i)+=1
+            $(else)
+                $(it:i)+=2
 

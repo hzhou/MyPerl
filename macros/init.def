@@ -78,3 +78,11 @@ subcode:: universal_vars
     $call add_universal, $LIST_SEPARATOR # $"
     $call _set_s, " "
 
+subcode:: universal_vars
+    $call add_universal, $0
+    $if argc>1
+        $call _set_s, argv[1]
+    $call add_universal, @ARGV
+    $for i=2:argc
+        $call av_add_s, argv[i]
+    

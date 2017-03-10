@@ -62,6 +62,15 @@ fncode: f_new_op(tn_type, op_a, op_b)
     return op
 
 #----------------------------------------------- 
+subcode: make_op_list(op, type, N, @plist)
+    op_list = get_op_list($(N))
+    $(for:a in $(plist))
+        $(if:a!=NULL)
+            # struct copy
+            op_list[$(_i)] = *($(a))
+    $call new_op2, $(op), $(type), $(N), op_list
+
+#----------------------------------------------- 
 fncode: f_flatten_op_list(op, tn_type, tn_new_type)
     n = f_op_iter_count(op, tn_type)
     op_list = get_op_list(n)

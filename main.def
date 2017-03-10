@@ -50,11 +50,11 @@ page: myperl, basic_frame
 
     subcode: parse_cmdline
         $local s_script_file=NULL
-        $if argc==2
+        $if argc>=2
             $if file_exist(argv[1])
                 s_script_file = argv[1]
-        $elif argc>2
-            $call die, "Usage: myperl [perl_script]"
+            $else
+                $call die, "Usage: myperl [perl_script]"
 
 #---------------------------------------- 
 fncode: run_script(s_file)

@@ -1,4 +1,6 @@
 include: c/darray.def
+subcode:: define_ops
+    $map define_op, block, loop
 
 fncode: run_cv
     $parameter cv, $(PARAM_CTX)
@@ -30,33 +32,68 @@ fncode: run_cv
 
     subcode: run_cv_block
         op_block = cv->op_block
-        $if op_block->type==OP_block
-            # label, goto, break, continue  only supported in OP_block
-            &call svregs_ret_1
-                $call do_cv_op_block
+        $(set:T=op_block->type==OP_$1)
+        $if $(T:block)
+            $call do_cv_op_block
+        $elif $(T:loop)
+            $call do_cv_op_loop
         $else # OP_CV, OP_IF
-            sv_ret = eval_op(cv->op_block, $(CTX_VOID))
+            sv_ret = eval_op(op_block, $(CTX_SCALAR))
         # ----------------------
         subcode: do_cv_op_block
-            n = op_block->left.n
-            op_list = op_block->right.op
-            i=0
-            $while 1
-                $(set:op=op_list[i])
-                $call @debug_cv_run_op_block
-                $call @svregs_reset
-                sv_ret=eval_op(&$(op), $(CTX_SCALAR))
-                $if sv_ret && sv_ret->type==SVt_goto
-                    $call @handle_goto
-                i++
-                $if i<n
+            &call svregs_ret_1
+                n = op_block->left.n
+                op_list = op_block->right.op
+                i=0
+                sv_ret = NULL
+                $while i<n; i++
+                    # discard ret except the last one
                     $call ret_svreg, sv_ret
+                    $(set:op=op_list[i])
+                    $call @debug_cv_run_op_block
+                    $call @svregs_reset
+                    sv_ret=eval_op(&$(op), $(CTX_SCALAR))
+                    $if sv_ret && sv_ret->type==SVt_goto
+                        $call @handle_goto, block
+        # ----------------------
+        subcode: do_cv_op_loop
+            # init, cond, cont, block
+            op_list = op_block->right.op
+            op_init = &op_list[0]
+            op_cond = &op_list[1]
+            op_cont = &op_list[2]
+            $call assert, op_list[3].type==OP_CV
+            cv = op_list[3].right.cv
+            
+            $call run_void, op_init
+            $while 1
+                $call run_cond, op_cond
+                $if tn_cond
+                    $call run_void, cv
+                    $call run_void, op_cont
                 $else
                     break
+            sv_ret = NULL
+
+            # ----
+            subcode: run_void(op)
+                $(if:op=cv)
+                    sv_ret = run_cv($(op), $(CTX_SCALAR))
+                    $if sv_ret && sv_ret->type==SVt_goto
+                        $call @handle_goto, loop
+                $(else)
+                    $if $(op)
+                        sv_ret = eval_op($(op), $(CTX_SCALAR))
+                $call ret_svreg, sv_ret
+
+            subcode: run_cond(op)
+                sv_ret = eval_op($(op), $(CTX_SCALAR))
+                tn_cond = do_bool(sv_ret)
+                $call ret_svreg, sv_ret
 
 #- goto, and op_block ----------------------- 
 subcode:: define_ops
-    $map define_op, block, GOTO_LABEL, GOTO, BREAK, RETURN
+    $map define_op, GOTO_LABEL, GOTO, BREAK, RETURN
 
 subcode:: reduce_goto_etc
     $(set:WORD=$(op_n)==WORD_$1)
@@ -82,16 +119,16 @@ subcode:: reduce_goto_etc
         i=lex_stack_len-1
         cv = lex_stack[i]
         $while i>0;i--
-            $if lex_stack[i]->flag==CVf_loop
+            $if lex_stack[i]->type==CVt_loop
                 cv = lex_stack[i]
                 break
     subcode: get_sub_cv
-        $if cv_cur->flag==CVf_sub
+        $if cv_cur->type==CVt_sub
             cv = cv_cur
         $else
             i=lex_stack_len-1
             $while i>0;i--
-                $if lex_stack[i]->flag==CVf_sub
+                $if lex_stack[i]->type==CVt_sub
                     cv = lex_stack[i]
                     break
             $if i==0
@@ -125,7 +162,7 @@ subcode:: eval_op_cases
         $call die, "goto label not supported"
 
 #----------------------------------------------- 
-subcode: handle_goto
+subcode: handle_goto(type)
     $(set:i=sv_ret->value.G.i)
     $(set:b=sv_ret->value.G.cv)
     $if $(i)>0
@@ -152,20 +189,21 @@ subcode: handle_goto
         $elif $(i)==GOTO_return
             # ref: do_sub.def
             $call simple_break, sv_RETURN
-        $elif cv->flag == CVf_loop
-            $if $(i) == GOTO_last
-                $call simple_break, NULL
-            $elif $(i) == GOTO_next
-                $call loop_next
-            $elif $(i) == GOTO_redo
-                $call loop_redo
         $else
-            # Bare block
-            $if $(i) == GOTO_last ||$(i) == GOTO_next
-                $call simple_break, NULL
-            $elif $(i) == GOTO_redo
-                # redo the block
-                continue
+            $(if:type=loop)
+                $if $(i) == GOTO_last
+                    $call simple_break, NULL
+                $elif $(i) == GOTO_next
+                    $call loop_next
+                $elif $(i) == GOTO_redo
+                    $call loop_redo
+            $(else)
+                $if $(i) == GOTO_last ||$(i) == GOTO_next
+                    $call simple_break, NULL
+                $elif $(i) == GOTO_redo
+                    # redo the block
+                    i=0
+                    continue
 
         subcode: simple_break(ret)
             $call ret_svreg, sv_ret
