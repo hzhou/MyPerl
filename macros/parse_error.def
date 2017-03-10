@@ -4,9 +4,10 @@ subcode: error(@msg)
     exit(0)
 
 subcode: assert(@cond)
-    $if !($(cond))
-        $print assert error: ! ($(cond))
-        exit(0)
+    $(if:1)
+        $if !($(cond))
+            $print assert error: ! ($(cond))
+            exit(0)
 
 #----------------------------------------------- 
 subcode: debug_parse_stack

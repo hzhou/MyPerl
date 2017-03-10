@@ -49,7 +49,7 @@ macros:
     av_count: ($1->i_n-$1->i_0)
 
 fncode: AV_resize(av, n)
-    $call @count, av_resize
+    # $call @count, av_resize
     $if n==0
         n=(av->i_n-av->i_0)*5/3+$(AV_HEADROOM)*2
     $elif n<0

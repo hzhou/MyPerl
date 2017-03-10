@@ -3,6 +3,9 @@
     gcc -g -o myperl myperl.c -lm -lpcre -lreadline
     ./myperl [script.pl]
 
+    -- to run script:
+    ./myperl script.pl
+
     -- to run REPL:
     ./myperl
 

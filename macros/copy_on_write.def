@@ -26,8 +26,9 @@ fncode: get_copy
 
 fncode: ret_copy(sv)
     $(set:i=sv->copy)
-    tb_need_copy = 0
-    $if $(i)==1
+    $if !$(i)
+        return 0
+    $elif $(i)==1
         $(i)=0
         return 1
     $elif $(i)
@@ -40,11 +41,11 @@ fncode: ret_copy(sv)
         $if svcopy[i]==0
             n_svcopy--
             # last copy, just take it
+            return 0
         $else
             # on_write: duplicate
             # on refdec: return (do not free)
             return 1
-    return 0
 
 subcode: sv_on_write(sv)
     $(set:msg=sv_on_write)
