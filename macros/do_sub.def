@@ -8,6 +8,7 @@ subcode:: parse_keyword_other
     $elif tn_word == WORD_sub
         $call new_op, op, OP_SUB, 0
         $call set_cur, T_BOS_HEAD, op
+        n_bos_word = WORD_sub
         goto try_reduce
 
 subcode:: parse_bareword
@@ -17,8 +18,8 @@ subcode:: parse_bareword
         goto lexer
 
 subcode:: set_cv_flags
-    $if $(type:1)==T_BOS_HEAD && $(value:1).op->type==OP_SUB
-        cv_cur->flag = CVf_sub
+    $case n_bos_word == WORD_sub
+        cv_cur->type = CVt_sub
 
 subcode:: reduce_statement_cv1
     $case $(T) == OP_SUB
@@ -44,7 +45,7 @@ subcode:: define_ops
     $map define_op, Fcall, fcall
 
 subcode:: parse_bareword
-    $case s && *s=='('
+    $case s && *s=='(' && $(type:1)!=T_SIGIL
         $call bareword_subname
         $call new_op2, op, OP_Fcall, sv, 0
         # reduce ref: parse_reduce.def

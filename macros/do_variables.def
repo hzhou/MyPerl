@@ -12,6 +12,7 @@ subcode:: eval_op_cases
         sv_var = &g_local[i_var]
         $if $(opT:MY)
             $call sv_set_type, sv_var, op->left.n
+        $call @handle_alias # ref: do_loop.def -- foreach
         $call return_var
     case OP_GLOBAL:
         i_var = (int)op->right.n

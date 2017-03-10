@@ -13,7 +13,7 @@ macros:
     # BASIC can directly copy values
     SV_BASIC:: SVt_undef, SVt_int, SVt_float
     # Other SV may hold additional pointers
-    SV_TYPES:: SVt_hv, SVt_sv
+    SV_TYPES:: SVt_hv, SVt_alias, SVt_ref
 
 subcode: _autoload
     $(set:types=$(SV_BASIC),SVt_BASIC,$(SV_TYPES))
@@ -102,11 +102,11 @@ subcode: sv_value_release(sv)
     $(set:p=$(sv)->value.p)
     $call @sv_ref_release
     $case $(p)
-        $case $(T:$(sv))
+        $case $(T:ref)
             SV_refdec((struct SV*)$(p))
         $case $(T:hv)
             HV_free((struct HV*)$(p))
-        $call @sv_ref_release_cases
+        $call @sv_ref_release_p_cases
 
 #---------------------------------------- 
 macros:

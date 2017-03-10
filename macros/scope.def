@@ -85,10 +85,7 @@ subcode: add_local(i_var, name, len)
     $(i_var) = g_local_len
     g_local.$grow 1
     g_local_len++
-    $(if:0)
-        stash_local.$set $(name), $(len), $(i_var)
-    $(else)
-        f_add_local_name($(name), $(len), $(i_var))
+    f_add_local_name($(name), $(len), $(i_var))
 
     $call @debug_add_local
 

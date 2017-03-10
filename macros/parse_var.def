@@ -8,6 +8,7 @@ macros:
 subcode:: parse_keyword_other
     $elif tn_word == WORD_my || tn_word==WORD_our
         $local n_in_my = 0
+        $call @word_my_foreach
         n_in_my = tn_word # reset at reduction
         $call set_cur, T_MY, tn_word
         goto try_reduce
@@ -58,12 +59,13 @@ subcode:: parse_bareword
 
         # $print ... var $(s), n_in_my=$n_in_my
         $if n_in_my==0
+            $call @var_check_foreach
             $call check_var
         $else
             $if n_in_my==WORD_our
                 $call check_var_our
             $elif n_in_my==WORD_my
-                $call check_var_my
+                $call add_var_my
 
         # -----------------------
         subcode: set_var(type, i)
@@ -95,7 +97,7 @@ subcode:: parse_bareword
                 $call add_global, i_var, $(s), n+1
             $call set_var, GLOBAL, i_var
 
-        subcode: check_var_my
+        subcode: add_var_my
             # each my creates new var
             $call add_local, i_var, $(s), n+1
             $call set_var, MY, i_var
@@ -148,6 +150,7 @@ subcode:: reduce_eoc_special
             goto lexer
 
 subcode:: reduce_eoc_special
+    # consider: my ($var) = @_
     $(set:bos=$(type:3)==T_BOS || $(type:3)==T_MY)
     $if ($(bos)) && $(op_eoc)==')' && $(block)->type!=OP_LIST
         $call new_op2, op, OP_list, 1, $(block)
@@ -155,6 +158,7 @@ subcode:: reduce_eoc_special
         $(type:1)=T_ATOM
         $(value:1).op = op
         goto lexer
+
 #----------------------------------------------- 
 # this is for var inside string interpolation
 #    so limited to static resolvable ones.

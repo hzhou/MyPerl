@@ -27,6 +27,10 @@ print "\n";
 print "  for 1 to 10:";
 for(my $i=1;$i<=10;$i++){print " ",$i;} 
 print "\n";
+# -- foreach --
+print "  foreach \@a: ";
+foreach my $a (@a){print "$a - ";}
+print "\n";
 # -- bare block --
 { # DEBUG
 1

@@ -33,7 +33,7 @@ subcode: _autoload
 macros:
     SV_TYPES:: SVt_regex
 
-subcode:: sv_ref_release_cases
+subcode:: sv_ref_release_p_cases
     $case $(T:regex)
         pcre_free($(p))
 

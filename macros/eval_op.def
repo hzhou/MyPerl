@@ -3,12 +3,15 @@ macros:
     CTX_VOID: 0, tn_level+1
     CTX_SCALAR: 1, tn_level+1
     CTX_LIST: 2, tn_level+1
+    # note: LEFT & ALIAS are similar, except ALIAS expands @
     CTX_LEFT: 3, tn_level+1
+    CTX_ALIAS: 4, tn_level+1
 
     IS_VOID: tn_context==0
     IS_SCALAR: tn_context==1
     IS_LIST: tn_context==2
     IS_LEFT: tn_context==3
+    IS_ALIAS: tn_context==4
 
     PARAM_CTX: tn_context, tn_level
 

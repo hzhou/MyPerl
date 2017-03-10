@@ -82,7 +82,7 @@ subcode: debug_eval_op
 
 subcode: debug_cv_run_op_block
     $if cv->debug
-        $print "cv_run %s [$i/$n]", cv->flag==CVf_loop?"loop":"block"
+        $print "cv_run %s [$i/$n]", cv->type==CVt_loop?"loop":"block"
 
 #---- var, scope -------------------------------- 
 /*

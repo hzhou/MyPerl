@@ -4,7 +4,7 @@ macros:
 subcode: _autoload
     $register_prefix(io) FILE *
 
-subcode:: sv_ref_release_cases
+subcode:: sv_ref_release_p_cases
     $case $(T:io)
         # $print closing file ...
         fclose((FILE*)sv->value.p)
